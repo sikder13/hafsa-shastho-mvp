@@ -1,0 +1,284 @@
+CRITICAL: This is a REACT NATIVE EXPO mobile app for Android/iOS.
+DO NOT create a web app. DO NOT use HTML, Tailwind, or web libraries.
+
+Working directory: /workspace/hafsa-shastho/
+
+TASK 1: Create file screens/AuthScreen.js
+
+Full code for screens/AuthScreen.js:
+
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  SafeAreaView
+} from 'react-native';
+import { supabase } from '../supabaseClient';
+
+export default function AuthScreen() {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const sendOtp = async () => {
+    if (phoneNumber.length !== 10) {
+      setError('সঠিক ফোন নম্বর দিন');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    const formattedPhone = '+880' + phoneNumber;
+    
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+      });
+      
+      if (error) throw error;
+      
+      setShowOtpInput(true);
+    } catch (err) {
+      console.error('OTP Error:', err);
+      setError('OTP পাঠাতে ব্যর্থ। আবার চেষ্টা করুন');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (otpCode.length !== 6) {
+      setError('৬ ডিজিটের OTP দিন');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    
+    const formattedPhone = '+880' + phoneNumber;
+    
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token: otpCode,
+        type: 'sms',
+      });
+      
+      if (error) throw error;
+    } catch (err) {
+      console.error('Verify Error:', err);
+      setError('ভুল OTP। আবার চেষ্টা করুন');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={{ flex: 1, padding: 20, justifyContent: 'center' }}>
+          
+          <View style={{ alignItems: 'center', marginBottom: 40 }}>
+            <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#4CAF50', marginBottom: 8 }}>
+              হাফসা স্বাস্থ্য
+            </Text>
+            <Text style={{ fontSize: 20, marginBottom: 4 }}>
+              আস্সালামু আলাইকুম!
+            </Text>
+            <Text style={{ fontSize: 16, color: '#666' }}>
+              শিশুর স্বাস্থ্য, মায়ের শান্তি
+            </Text>
+          </View>
+
+          {!showOtpInput && (
+            <View>
+              <Text style={{ fontSize: 18, marginBottom: 12, color: '#333' }}>
+                আপনার ফোন নম্বর দিন:
+              </Text>
+              
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: '#E0E0E0',
+                borderRadius: 12,
+                height: 60,
+                paddingHorizontal: 16,
+                marginBottom: 16,
+                backgroundColor: 'white'
+              }}>
+                <Text style={{ fontSize: 18, marginRight: 8 }}>+880</Text>
+                <TextInput
+                  style={{ flex: 1, fontSize: 18 }}
+                  placeholder="1XXXXXXXXX"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  value={phoneNumber}
+                  onChangeText={setPhoneNumber}
+                />
+              </View>
+
+              <TouchableOpacity
+                onPress={sendOtp}
+                disabled={loading}
+                style={{
+                  backgroundColor: loading ? '#A8D5BA' : '#4CAF50',
+                  height: 60,
+                  borderRadius: 12,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>
+                    OTP পাঠান
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {showOtpInput && (
+            <View>
+              <Text style={{ fontSize: 18, marginBottom: 12, color: '#333' }}>
+                OTP কোড লিখুন:
+              </Text>
+              
+              <TextInput
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#E0E0E0',
+                  borderRadius: 12,
+                  height: 60,
+                  paddingHorizontal: 16,
+                  fontSize: 18,
+                  marginBottom: 16,
+                  backgroundColor: 'white'
+                }}
+                placeholder="XXXXXX"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otpCode}
+                onChangeText={setOtpCode}
+              />
+
+              <TouchableOpacity
+                onPress={verifyOtp}
+                disabled={loading}
+                style={{
+                  backgroundColor: loading ? '#A8D5BA' : '#4CAF50',
+                  height: 60,
+                  borderRadius: 12,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+              >
+                {loading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>
+                    যাচাই করুন ও লগইন করুন
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {error ? (
+            <Text style={{ color: '#F44336', marginTop: 16, textAlign: 'center', fontSize: 16 }}>
+              {error}
+            </Text>
+          ) : null}
+
+          <View style={{
+            marginTop: 32,
+            padding: 16,
+            backgroundColor: '#E8F5E9',
+            borderRadius: 12,
+            alignItems: 'center'
+          }}>
+            <Text style={{ fontSize: 16, color: '#2E7D32', textAlign: 'center' }}>
+              ✨ ১৪ দিনের বিনামূল্যে ট্রায়াল ✨
+            </Text>
+            <Text style={{ fontSize: 14, color: '#666', marginTop: 4, textAlign: 'center' }}>
+              কোনো পেমেন্ট কার্ড লাগবে না
+            </Text>
+          </View>
+
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TASK 2: Replace entire contents of App.js with:
+
+import React, { useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { supabase } from './supabaseClient';
+import AuthScreen from './screens/AuthScreen';
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9F9F9' }}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+      </View>
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen />;
+  }
+
+  return (
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F9F9F9' }}>
+      <Text style={{ fontSize: 32 }}>✅</Text>
+      <Text style={{ fontSize: 24, fontWeight: 'bold', marginTop: 16 }}>স্বাগতম!</Text>
+      <Text style={{ fontSize: 18, color: '#666', marginTop: 8 }}>লগইন সফল হয়েছে</Text>
+      <Text style={{ fontSize: 14, color: '#999', marginTop: 16 }}>
+        Phone: {session.user.phone}
+      </Text>
+    </View>
+  );
+}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANT NOTES:
+- Create files in /workspace/hafsa-shastho/ directory
+- Use React Native components only (View, Text, TextInput, TouchableOpacity)
+- Do NOT use HTML, CSS, Tailwind, or web libraries
+- All styling uses inline style objects
+- This is for mobile (Android/iOS), not web
