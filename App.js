@@ -9,7 +9,7 @@ import HomeScreen from './screens/HomeScreen';
 import VaccineScreen from './screens/VaccineScreen';
 import GrowthScreen from './screens/GrowthScreen';
 import DailyLogScreen from './screens/DailyLogScreen';
-import ChatTestScreen from './screens/ChatTestScreen';
+import ChatScreen from './screens/ChatScreen';
 
 // Supabase client (not actively used but kept for future)
 const supabase = createClient(
@@ -112,10 +112,11 @@ export default function App() {
     );
   }
 
-  if (currentScreen === 'chattest') {
+  if (currentScreen === 'chat') {
     return (
       <>
-        <ChatTestScreen 
+        <ChatScreen 
+          baby={babyProfile}
           onBack={() => setCurrentScreen('home')} 
         />
         <StatusBar style="auto" />
@@ -130,7 +131,7 @@ export default function App() {
         onNavigateVaccine={() => setCurrentScreen('vaccine')}
         onNavigateGrowth={() => setCurrentScreen('growth')}
         onNavigateDailyLog={() => setCurrentScreen('dailylog')}
-        onNavigateChatTest={() => setCurrentScreen('chattest')}
+        onNavigateChat={() => setCurrentScreen('chat')}
         onReset={handleReset}
       />
       <StatusBar style="auto" />

@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChatTest }) {
+export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChat }) {
   const [logs, setLogs] = useState({
     feed: [],
     sleep: [],
@@ -174,8 +174,8 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           
           <TouchableOpacity
             onPress={() => {
-              if (onNavigateChatTest) {
-                onNavigateChatTest();
+              if (onNavigateChat) {
+                onNavigateChat();
               }
             }}
             style={{
