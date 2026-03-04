@@ -12,6 +12,7 @@ import GrowthScreen from './screens/GrowthScreen';
 import DailyLogScreen from './screens/DailyLogScreen';
 import ChatScreen from './screens/ChatScreen';
 import MotherCheckInScreen from './screens/MotherCheckInScreen';
+import EdinburghScaleScreen from './screens/EdinburghScaleScreen';
 
 // Inner app that has access to context
 function AppContent() {
@@ -82,7 +83,22 @@ function AppContent() {
   if (currentScreen === 'motherCheckin') {
     return (
       <>
-        <MotherCheckInScreen onBack={() => setCurrentScreen('home')} />
+        <MotherCheckInScreen
+          onBack={() => setCurrentScreen('home')}
+          onNavigateEPDS={() => setCurrentScreen('edinburgh')}
+        />
+        <StatusBar style="auto" />
+      </>
+    );
+  }
+
+  if (currentScreen === 'edinburgh') {
+    return (
+      <>
+        <EdinburghScaleScreen
+          onComplete={() => setCurrentScreen('home')}
+          onBack={() => setCurrentScreen('motherCheckin')}
+        />
         <StatusBar style="auto" />
       </>
     );

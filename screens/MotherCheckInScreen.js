@@ -16,11 +16,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { toBengaliNumber, calculateAge, getRecoveryStage } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
+import { isEPDSDue } from './EdinburghScaleScreen';
 
 const TOTAL_STEPS = 4; // Mood, Physical, Self-Care, Hafsa Response
 
-export default function MotherCheckInScreen({ onBack }) {
+export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
   const { baby, motherProfile, saveMotherLog, todayMotherLog, motherLogHistory } = useApp();
+
+  // EPDS state
+  const [epdsIsDue, setEpdsIsDue] = useState(false);
 
   // Check-in data
   const [mood, setMood] = useState(null);
@@ -57,6 +61,15 @@ export default function MotherCheckInScreen({ onBack }) {
       if (todayMotherLog.breastfeedingSessions) setBreastfeedingSessions(todayMotherLog.breastfeedingSessions);
     }
   }, [todayMotherLog]);
+
+  // Check if EPDS assessment is due
+  useEffect(() => {
+    const checkEPDS = async () => {
+      const due = await isEPDSDue();
+      setEpdsIsDue(due);
+    };
+    checkEPDS();
+  }, []);
 
   // ============================================================
   // NAVIGATION
@@ -820,6 +833,34 @@ export default function MotherCheckInScreen({ onBack }) {
                   {getHafsaResponse()}
                 </Text>
               </View>
+
+              {/* EPDS Assessment Prompt — shows when due */}
+              {epdsIsDue && onNavigateEPDS && (
+                <TouchableOpacity
+                  onPress={onNavigateEPDS}
+                  style={{
+                    backgroundColor: '#F3E5F5',
+                    borderRadius: 16,
+                    padding: 20,
+                    marginTop: 20,
+                    borderLeftWidth: 5,
+                    borderLeftColor: '#9C27B0',
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{ fontSize: 32, marginRight: 14 }}>💜</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#7B1FA2', marginBottom: 4 }}>
+                      মানসিক স্বাস্থ্য মূল্যায়ন
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#9C27B0', lineHeight: 18 }}>
+                      ২ সপ্তাহ হয়ে গেছে। ৩ মিনিটের একটি মূল্যায়ন করুন — এটা আপনার জন্য গুরুত্বপূর্ণ।
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 20, color: '#9C27B0' }}>→</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Action buttons */}
               <View style={{ gap: 12, marginTop: 24 }}>
