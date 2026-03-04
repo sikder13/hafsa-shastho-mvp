@@ -5,7 +5,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { COLORS } from './utils/constants';
 
 // Import screens
-import BabyProfileScreen from './screens/BabyProfileScreen';
+import OnboardingScreen from './screens/OnboardingScreen';
 import HomeScreen from './screens/HomeScreen';
 import VaccineScreen from './screens/VaccineScreen';
 import GrowthScreen from './screens/GrowthScreen';
@@ -14,7 +14,7 @@ import ChatScreen from './screens/ChatScreen';
 
 // Inner app that has access to context
 function AppContent() {
-  const { baby, saveBabyProfile, resetAllData, loading } = useApp();
+  const { baby, saveBabyProfile, saveMotherProfile, resetAllData, loading } = useApp();
   const [currentScreen, setCurrentScreen] = useState('home');
 
   // Show loading spinner while data loads from AsyncStorage
@@ -26,17 +26,22 @@ function AppContent() {
     );
   }
 
-  // No baby profile yet — show profile creation
+  // No baby profile yet — show onboarding
   if (!baby) {
     return (
       <>
-        <BabyProfileScreen onProfileCreated={saveBabyProfile} />
+        <OnboardingScreen
+          onComplete={async (babyData, motherData) => {
+            await saveBabyProfile(babyData);
+            await saveMotherProfile(motherData);
+          }}
+        />
         <StatusBar style="auto" />
       </>
     );
   }
 
-  // Screen routing (will be replaced by React Navigation in Prompt 5B)
+  // Screen routing (will be replaced by React Navigation in Phase 4)
   if (currentScreen === 'vaccine') {
     return (
       <>
