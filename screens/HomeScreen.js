@@ -8,10 +8,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { toBengaliNumber, calculateAge, getGreeting, countToday } from '../utils/helpers';
-import { COLORS, STORAGE_KEYS } from '../utils/constants';
+import { useApp } from '../context/AppContext';
+import { toBengaliNumber, calculateAge, getGreeting, countToday, getRecoveryStage } from '../utils/helpers';
+import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 
 export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChat, onNavigateMotherCheckin }) {
+  const { motherProfile, todayMotherLog } = useApp();
   const [logs, setLogs] = useState({
     feed: [],
     sleep: [],
@@ -163,9 +165,10 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           </TouchableOpacity>
         </View>
 
-        {/* MOTHER CHECK-IN CARD — Prominent placement */}
+        {/* MOTHER CHECK-IN CARD — Shows status if checked in, or prompt if not */}
         <TouchableOpacity
           onPress={onNavigateMotherCheckin}
+          activeOpacity={0.8}
           style={{
             backgroundColor: '#FFF0F3',
             borderRadius: 16,
@@ -180,18 +183,142 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
             elevation: 3
           }}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={{ fontSize: 36, marginRight: 14 }}>🤱</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.mother, marginBottom: 4 }}>
-                মায়ের দৈনিক চেক-ইন
-              </Text>
-              <Text style={{ fontSize: 14, color: '#AD1457', lineHeight: 20 }}>
-                আজ আপনি কেমন আছেন? ট্যাপ করুন →
-              </Text>
+          {todayMotherLog ? (
+            // CHECKED IN — Show today's summary
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 24, marginRight: 10 }}>🤱</Text>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.mother }}>
+                    মায়ের চেক-ইন ✅
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 13, color: '#AD1457' }}>আপডেট →</Text>
+              </View>
+
+              {/* Status row */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {/* Mood */}
+                {todayMotherLog.mood && (
+                  <View style={{
+                    backgroundColor: 'white',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ fontSize: 16, marginRight: 6 }}>
+                      {TEXT.moodEmojis[todayMotherLog.mood] || '😐'}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
+                      {TEXT.moods[todayMotherLog.mood] || todayMotherLog.mood}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Sleep */}
+                {todayMotherLog.sleepHours && (
+                  <View style={{
+                    backgroundColor: 'white',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ fontSize: 16, marginRight: 6 }}>😴</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
+                      {todayMotherLog.sleepHours === '1-2' ? '১-২ ঘন্টা' :
+                       todayMotherLog.sleepHours === '3-4' ? '৩-৪ ঘন্টা' :
+                       todayMotherLog.sleepHours === '5-6' ? '৫-৬ ঘন্টা' : '৭+ ঘন্টা'}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Water */}
+                {todayMotherLog.waterIntake > 0 && (
+                  <View style={{
+                    backgroundColor: 'white',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ fontSize: 16, marginRight: 6 }}>💧</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
+                      {toBengaliNumber(todayMotherLog.waterIntake)}/৮
+                    </Text>
+                  </View>
+                )}
+
+                {/* Breastfeeding */}
+                {todayMotherLog.breastfeedingSessions > 0 && (
+                  <View style={{
+                    backgroundColor: 'white',
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}>
+                    <Text style={{ fontSize: 16, marginRight: 6 }}>🤱</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
+                      {toBengaliNumber(todayMotherLog.breastfeedingSessions)} বার
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Recovery progress */}
+              {motherProfile && (
+                <View style={{ marginTop: 12 }}>
+                  {(() => {
+                    const ageInfo = calculateAge(baby.birth_date);
+                    const recovery = getRecoveryStage(
+                      ageInfo.ageDays,
+                      motherProfile.delivery_type === 'csection' ? 'csection' : 'normal'
+                    );
+                    return (
+                      <View>
+                        <View style={{
+                          height: 6,
+                          backgroundColor: '#F8BBD0',
+                          borderRadius: 3,
+                          overflow: 'hidden'
+                        }}>
+                          <View style={{
+                            height: '100%',
+                            width: `${recovery.percentComplete}%`,
+                            backgroundColor: COLORS.mother,
+                            borderRadius: 3
+                          }} />
+                        </View>
+                        <Text style={{ fontSize: 12, color: '#AD1457', marginTop: 4 }}>
+                          সুস্থতা {toBengaliNumber(recovery.percentComplete)}% • {recovery.description}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+                </View>
+              )}
             </View>
-            <Text style={{ fontSize: 24, color: COLORS.mother }}>→</Text>
-          </View>
+          ) : (
+            // NOT CHECKED IN — Show prompt
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 36, marginRight: 14 }}>🤱</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.mother, marginBottom: 4 }}>
+                  মায়ের দৈনিক চেক-ইন
+                </Text>
+                <Text style={{ fontSize: 14, color: '#AD1457', lineHeight: 20 }}>
+                  আজ আপনি কেমন আছেন? ট্যাপ করুন →
+                </Text>
+              </View>
+              <Text style={{ fontSize: 24, color: COLORS.mother }}>→</Text>
+            </View>
+          )}
         </TouchableOpacity>
 
         {/* FEATURES SECTION HEADER */}
