@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toBengaliNumber, calculateAge, getGreeting, countToday } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS } from '../utils/constants';
 
-export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChat }) {
+export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChat, onNavigateMotherCheckin }) {
   const [logs, setLogs] = useState({
     feed: [],
     sleep: [],
@@ -54,11 +54,14 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           style: 'destructive',
           onPress: async () => {
             try {
-              await AsyncStorage.clear();
+              const allKeys = await AsyncStorage.getAllKeys();
+              if (allKeys.length > 0) {
+                await AsyncStorage.multiRemove(allKeys);
+              }
               
               Alert.alert(
                 '✅ সম্পন্ন',
-                'সব ডেটা মুছে ফেলা হয়েছে। অ্যাপ রিস্টার্ট করুন।',
+                'সব ডেটা মুছে ফেলা হয়েছে।',
                 [
                   {
                     text: 'ঠিক আছে',
@@ -117,7 +120,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           backgroundColor: COLORS.primaryLight,
           padding: 24,
           borderRadius: 16,
-          marginBottom: 32,
+          marginBottom: 24,
           borderLeftWidth: 6,
           borderLeftColor: COLORS.primary
         }}>
@@ -160,9 +163,40 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           </TouchableOpacity>
         </View>
 
+        {/* MOTHER CHECK-IN CARD — Prominent placement */}
+        <TouchableOpacity
+          onPress={onNavigateMotherCheckin}
+          style={{
+            backgroundColor: '#FFF0F3',
+            borderRadius: 16,
+            padding: 20,
+            marginBottom: 24,
+            borderLeftWidth: 6,
+            borderLeftColor: COLORS.mother,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            elevation: 3
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: 36, marginRight: 14 }}>🤱</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.mother, marginBottom: 4 }}>
+                মায়ের দৈনিক চেক-ইন
+              </Text>
+              <Text style={{ fontSize: 14, color: '#AD1457', lineHeight: 20 }}>
+                আজ আপনি কেমন আছেন? ট্যাপ করুন →
+              </Text>
+            </View>
+            <Text style={{ fontSize: 24, color: COLORS.mother }}>→</Text>
+          </View>
+        </TouchableOpacity>
+
         {/* FEATURES SECTION HEADER */}
         <Text style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 20, color: COLORS.dark }}>
-          📋 সব ফিচার
+          📋 শিশুর ফিচার
         </Text>
 
         {/* FEATURE GRID */}

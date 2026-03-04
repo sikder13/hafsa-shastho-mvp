@@ -11,6 +11,7 @@ import VaccineScreen from './screens/VaccineScreen';
 import GrowthScreen from './screens/GrowthScreen';
 import DailyLogScreen from './screens/DailyLogScreen';
 import ChatScreen from './screens/ChatScreen';
+import MotherCheckInScreen from './screens/MotherCheckInScreen';
 
 // Inner app that has access to context
 function AppContent() {
@@ -41,7 +42,7 @@ function AppContent() {
     );
   }
 
-  // Screen routing (will be replaced by React Navigation in Phase 4)
+  // Screen routing
   if (currentScreen === 'vaccine') {
     return (
       <>
@@ -78,6 +79,15 @@ function AppContent() {
     );
   }
 
+  if (currentScreen === 'motherCheckin') {
+    return (
+      <>
+        <MotherCheckInScreen onBack={() => setCurrentScreen('home')} />
+        <StatusBar style="auto" />
+      </>
+    );
+  }
+
   // Default: Home screen
   return (
     <>
@@ -87,6 +97,7 @@ function AppContent() {
         onNavigateGrowth={() => setCurrentScreen('growth')}
         onNavigateDailyLog={() => setCurrentScreen('dailylog')}
         onNavigateChat={() => setCurrentScreen('chat')}
+        onNavigateMotherCheckin={() => setCurrentScreen('motherCheckin')}
         onReset={async () => {
           await resetAllData();
           setCurrentScreen('home');
