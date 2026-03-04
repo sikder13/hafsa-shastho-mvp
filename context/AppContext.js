@@ -267,7 +267,12 @@ export function AppProvider({ children }) {
 
   const resetAllData = useCallback(async () => {
     try {
-      await AsyncStorage.clear();
+      // Get all keys and remove them one by one
+      // (AsyncStorage.clear() fails on iOS due to directory permission)
+      const allKeys = await AsyncStorage.getAllKeys();
+      if (allKeys.length > 0) {
+        await AsyncStorage.multiRemove(allKeys);
+      }
       setBaby(null);
       setMotherProfile(null);
       setLogs({ feed: [], sleep: [], diaper: [], food: [] });
