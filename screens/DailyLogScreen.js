@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toBengaliNumber, calculateAgeInMonths, countToday } from '../utils/helpers';
+import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 
 export default function DailyLogScreen({ baby, onBack }) {
   const [logs, setLogs] = useState({
@@ -23,7 +25,7 @@ export default function DailyLogScreen({ baby, onBack }) {
 
   const loadLogs = async () => {
     try {
-      const savedLogs = await AsyncStorage.getItem(`daily_logs_${baby.id}`);
+      const savedLogs = await AsyncStorage.getItem(STORAGE_KEYS.dailyLogs(baby.id));
       if (savedLogs) {
         setLogs(JSON.parse(savedLogs));
       }
@@ -34,7 +36,7 @@ export default function DailyLogScreen({ baby, onBack }) {
 
   const saveLogs = async (newLogs) => {
     try {
-      await AsyncStorage.setItem(`daily_logs_${baby.id}`, JSON.stringify(newLogs));
+      await AsyncStorage.setItem(STORAGE_KEYS.dailyLogs(baby.id), JSON.stringify(newLogs));
     } catch (error) {
       console.error('Error saving logs:', error);
     }
@@ -64,17 +66,12 @@ export default function DailyLogScreen({ baby, onBack }) {
     );
   };
 
-  const getSmartFeedback = (type, logs) => {
-    const todayCount = getTodayCount(type, logs);
-    const avgLast7Days = getAverageLast7Days(type, logs);
-    const totalLogs = (logs[type] || []).length;
+  const getSmartFeedback = (type, currentLogs) => {
+    const todayCount = countToday(currentLogs[type]);
+    const avgLast7Days = getAverageLast7Days(type, currentLogs);
+    const totalLogs = (currentLogs[type] || []).length;
     
-    const typeName = {
-      feed: 'দুধ খাওয়ানো',
-      sleep: 'ঘুম',
-      diaper: 'ডায়াপার বদলানো',
-      food: 'খাবার খাওয়ানো'
-    }[type];
+    const typeName = TEXT.logTypes[type] || type;
 
     if (totalLogs === 1) {
       return {
@@ -119,16 +116,13 @@ export default function DailyLogScreen({ baby, onBack }) {
     };
   };
 
-  const getTodayCount = (type, logs) => {
-    const today = new Date().toDateString();
-    return (logs[type] || []).filter(log => {
-      return new Date(log.timestamp).toDateString() === today;
-    }).length;
+  const getTodayCount = (type, currentLogs) => {
+    return countToday(currentLogs[type]);
   };
 
-  const getAverageLast7Days = (type, logs) => {
+  const getAverageLast7Days = (type, currentLogs) => {
     const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const last7DaysLogs = (logs[type] || []).filter(log => {
+    const last7DaysLogs = (currentLogs[type] || []).filter(log => {
       return new Date(log.timestamp).getTime() > sevenDaysAgo;
     });
 
@@ -137,39 +131,20 @@ export default function DailyLogScreen({ baby, onBack }) {
     return last7DaysLogs.length / 7;
   };
 
-  const toBengaliNumber = (num) => {
-    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return String(num).split('').map(d => bengaliDigits[parseInt(d)] || d).join('');
-  };
-
-  const calculateAgeInMonths = (birthDate) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    
-    let months = (today.getFullYear() - birth.getFullYear()) * 12;
-    months += today.getMonth() - birth.getMonth();
-    
-    if (today.getDate() < birth.getDate()) {
-      months--;
-    }
-    
-    return Math.max(0, months);
-  };
-
   const babyAgeMonths = calculateAgeInMonths(baby.birth_date);
   const showFoodButton = babyAgeMonths >= 6;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       
       {/* BACK BUTTON */}
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: COLORS.background,
         borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0'
+        borderBottomColor: COLORS.border
       }}>
         <TouchableOpacity
           onPress={onBack}
@@ -180,8 +155,8 @@ export default function DailyLogScreen({ baby, onBack }) {
           }}
         >
           <Text style={{ fontSize: 28, marginRight: 8 }}>←</Text>
-          <Text style={{ fontSize: 18, color: '#4CAF50', fontWeight: 'bold' }}>
-            ফিরে যান
+          <Text style={{ fontSize: 18, color: COLORS.primary, fontWeight: 'bold' }}>
+            {TEXT.messages.goBack}
           </Text>
         </TouchableOpacity>
       </View>
@@ -192,32 +167,32 @@ export default function DailyLogScreen({ baby, onBack }) {
         <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>
           📊 দৈনিক লগ
         </Text>
-        <Text style={{ fontSize: 16, color: '#666', marginBottom: 24 }}>
+        <Text style={{ fontSize: 16, color: COLORS.gray, marginBottom: 24 }}>
           {baby.name} এর আজকের কার্যকলাপ
         </Text>
 
         {/* TODAY'S SUMMARY */}
         <View style={{
-          backgroundColor: '#E8F5E9',
+          backgroundColor: COLORS.primaryLight,
           padding: 16,
           borderRadius: 12,
           marginBottom: 24
         }}>
-          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, color: '#2E7D32' }}>
+          <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, color: COLORS.primaryDark }}>
             আজকের সারসংক্ষেপ
           </Text>
-          <Text style={{ fontSize: 16, color: '#1B5E20', marginBottom: 4 }}>
-            🍼 দুধ: {toBengaliNumber(getTodayCount('feed', logs))} বার
+          <Text style={{ fontSize: 16, color: COLORS.primaryDarker, marginBottom: 4 }}>
+            🍼 দুধ: {toBengaliNumber(countToday(logs.feed))} বার
           </Text>
-          <Text style={{ fontSize: 16, color: '#1B5E20', marginBottom: 4 }}>
-            😴 ঘুম: {toBengaliNumber(getTodayCount('sleep', logs))} বার
+          <Text style={{ fontSize: 16, color: COLORS.primaryDarker, marginBottom: 4 }}>
+            😴 ঘুম: {toBengaliNumber(countToday(logs.sleep))} বার
           </Text>
-          <Text style={{ fontSize: 16, color: '#1B5E20', marginBottom: 4 }}>
-            💩 ডায়াপার: {toBengaliNumber(getTodayCount('diaper', logs))} বার
+          <Text style={{ fontSize: 16, color: COLORS.primaryDarker, marginBottom: 4 }}>
+            💩 ডায়াপার: {toBengaliNumber(countToday(logs.diaper))} বার
           </Text>
           {showFoodButton && (
-            <Text style={{ fontSize: 16, color: '#1B5E20' }}>
-              🍚 খাবার: {toBengaliNumber(getTodayCount('food', logs))} বার
+            <Text style={{ fontSize: 16, color: COLORS.primaryDarker }}>
+              🍚 খাবার: {toBengaliNumber(countToday(logs.food))} বার
             </Text>
           )}
         </View>
@@ -231,7 +206,7 @@ export default function DailyLogScreen({ baby, onBack }) {
         <TouchableOpacity 
           onPress={() => handleLog('feed')}
           style={{
-            backgroundColor: '#4CAF50',
+            backgroundColor: COLORS.feed,
             height: 80,
             borderRadius: 12,
             marginBottom: 16,
@@ -254,7 +229,7 @@ export default function DailyLogScreen({ baby, onBack }) {
           <TouchableOpacity 
             onPress={() => handleLog('food')}
             style={{
-              backgroundColor: '#FF9800',
+              backgroundColor: COLORS.food,
               height: 80,
               borderRadius: 12,
               marginBottom: 16,
@@ -277,7 +252,7 @@ export default function DailyLogScreen({ baby, onBack }) {
         <TouchableOpacity 
           onPress={() => handleLog('sleep')}
           style={{
-            backgroundColor: '#2196F3',
+            backgroundColor: COLORS.sleep,
             height: 80,
             borderRadius: 12,
             marginBottom: 16,
@@ -299,7 +274,7 @@ export default function DailyLogScreen({ baby, onBack }) {
         <TouchableOpacity 
           onPress={() => handleLog('diaper')}
           style={{
-            backgroundColor: '#9C27B0',
+            backgroundColor: COLORS.diaper,
             height: 80,
             borderRadius: 12,
             marginBottom: 16,
@@ -325,7 +300,7 @@ export default function DailyLogScreen({ baby, onBack }) {
             borderRadius: 16,
             marginTop: 24,
             borderLeftWidth: 6,
-            borderLeftColor: '#2196F3'
+            borderLeftColor: COLORS.sleep
           }}>
             <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16, color: '#1565C0' }}>
               📊 গত ৭ দিনের সারসংক্ষেপ

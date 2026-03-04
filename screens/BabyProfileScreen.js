@@ -1,59 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { supabase } from '../supabaseClient';
+import { formatDateInput, calculateAge } from '../utils/helpers';
+import { COLORS } from '../utils/constants';
 
 export default function BabyProfileScreen({ onProfileCreated }) {
   const [babyName, setBabyName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const calculateAge = (dateString) => {
-    try {
-      const [day, month, year] = dateString.split('-').map(Number);
-      const birthDate = new Date(year, month - 1, day);
-      const today = new Date();
-      
-      let years = today.getFullYear() - birthDate.getFullYear();
-      let months = today.getMonth() - birthDate.getMonth();
-      let days = today.getDate() - birthDate.getDate();
-
-      if (days < 0) {
-        months--;
-        const lastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-        days += lastMonth.getDate();
-      }
-
-      if (months < 0) {
-        years--;
-        months += 12;
-      }
-
-      if (years > 0) {
-        return `${years} বছর ${months} মাস`;
-      } else if (months > 0) {
-        return `${months} মাস ${days} দিন`;
-      } else {
-        return `${days} দিন`;
-      }
-    } catch (error) {
-      return 'গণনা করা যায়নি';
-    }
-  };
-
-  const formatDate = (text) => {
-    // Remove non-numeric characters
-    const numbers = text.replace(/\D/g, '');
-    
-    // Format as DD-MM-YYYY
-    if (numbers.length <= 2) {
-      return numbers;
-    } else if (numbers.length <= 4) {
-      return `${numbers.slice(0, 2)}-${numbers.slice(2)}`;
-    } else {
-      return `${numbers.slice(0, 2)}-${numbers.slice(2, 4)}-${numbers.slice(4, 8)}`;
-    }
-  };
 
   const handleSave = async () => {
     if (!babyName.trim()) {
@@ -115,26 +70,8 @@ export default function BabyProfileScreen({ onProfileCreated }) {
       //   return;
       // }
 
-      // TODO: Re-enable for production
-      // Insert subscription table entry if needed
-      // const { error: subError } = await supabase
-      //   .from('subscriptions')
-      //   .insert([
-      //     {
-      //       user_id: userId,
-      //       baby_id: data[0].id,
-      //       // ... other subscription fields
-      //     },
-      //   ]);
-      //
-      // if (subError) {
-      //   Alert.alert('ত্রুটি', subError.message);
-      //   setLoading(false);
-      //   return;
-      // }
-
       // Mock data for testing (remove in production)
-      const userId = 'mock-user-' + Date.now(); // Mock user ID for testing
+      const userId = 'mock-user-' + Date.now();
       const mockBabyData = {
         id: 'mock-baby-' + Date.now(),
         user_id: userId,
@@ -162,12 +99,25 @@ export default function BabyProfileScreen({ onProfileCreated }) {
     }
   };
 
-  const ageDisplay = birthDate.length === 10 ? calculateAge(birthDate) : '';
+  // Calculate age display using shared helper
+  const getAgeDisplay = () => {
+    if (birthDate.length !== 10) return '';
+    try {
+      const [day, month, year] = birthDate.split('-');
+      const formattedDate = `${year}-${month}-${day}`;
+      const ageInfo = calculateAge(formattedDate);
+      return ageInfo.bengaliAge;
+    } catch {
+      return 'গণনা করা যায়নি';
+    }
+  };
+
+  const ageDisplay = getAgeDisplay();
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#ffffff' }}>
       <View style={{ padding: 20, paddingTop: 40 }}>
-        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#4CAF50', marginBottom: 30, textAlign: 'center' }}>
+        <Text style={{ fontSize: 28, fontWeight: 'bold', color: COLORS.primary, marginBottom: 30, textAlign: 'center' }}>
           শিশুর প্রোফাইল তৈরি করুন
         </Text>
 
@@ -205,15 +155,15 @@ export default function BabyProfileScreen({ onProfileCreated }) {
             }}
             placeholder="DD-MM-YYYY"
             value={birthDate}
-            onChangeText={(text) => setBirthDate(formatDate(text))}
+            onChangeText={(text) => setBirthDate(formatDateInput(text))}
             maxLength={10}
             keyboardType="number-pad"
           />
-          {ageDisplay && (
-            <Text style={{ fontSize: 14, color: '#4CAF50', marginTop: 8 }}>
+          {ageDisplay ? (
+            <Text style={{ fontSize: 14, color: COLORS.primary, marginTop: 8 }}>
               বয়স: {ageDisplay}
             </Text>
-          )}
+          ) : null}
         </View>
 
         <View style={{ marginBottom: 30 }}>
@@ -227,15 +177,15 @@ export default function BabyProfileScreen({ onProfileCreated }) {
                 padding: 16,
                 borderRadius: 8,
                 borderWidth: 2,
-                borderColor: gender === 'male' ? '#4CAF50' : '#ddd',
-                backgroundColor: gender === 'male' ? '#E8F5E9' : '#f9f9f9',
+                borderColor: gender === 'male' ? COLORS.primary : '#ddd',
+                backgroundColor: gender === 'male' ? COLORS.primaryLight : '#f9f9f9',
                 alignItems: 'center',
               }}
               onPress={() => setGender('male')}
             >
               <Text style={{ 
                 fontSize: 16, 
-                color: gender === 'male' ? '#4CAF50' : '#666',
+                color: gender === 'male' ? COLORS.primary : COLORS.gray,
                 fontWeight: gender === 'male' ? 'bold' : 'normal'
               }}>
                 ছেলে
@@ -248,15 +198,15 @@ export default function BabyProfileScreen({ onProfileCreated }) {
                 padding: 16,
                 borderRadius: 8,
                 borderWidth: 2,
-                borderColor: gender === 'female' ? '#4CAF50' : '#ddd',
-                backgroundColor: gender === 'female' ? '#E8F5E9' : '#f9f9f9',
+                borderColor: gender === 'female' ? COLORS.primary : '#ddd',
+                backgroundColor: gender === 'female' ? COLORS.primaryLight : '#f9f9f9',
                 alignItems: 'center',
               }}
               onPress={() => setGender('female')}
             >
               <Text style={{ 
                 fontSize: 16, 
-                color: gender === 'female' ? '#4CAF50' : '#666',
+                color: gender === 'female' ? COLORS.primary : COLORS.gray,
                 fontWeight: gender === 'female' ? 'bold' : 'normal'
               }}>
                 মেয়ে
@@ -267,7 +217,7 @@ export default function BabyProfileScreen({ onProfileCreated }) {
 
         <TouchableOpacity
           style={{
-            backgroundColor: '#4CAF50',
+            backgroundColor: COLORS.primary,
             padding: 16,
             borderRadius: 8,
             alignItems: 'center',

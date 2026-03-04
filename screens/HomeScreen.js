@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { toBengaliNumber, calculateAge, getGreeting, countToday } from '../utils/helpers';
+import { COLORS, STORAGE_KEYS } from '../utils/constants';
 
 export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChat }) {
   const [logs, setLogs] = useState({
@@ -23,7 +25,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
 
   const loadLogs = async () => {
     try {
-      const savedLogs = await AsyncStorage.getItem(`daily_logs_${baby.id}`);
+      const savedLogs = await AsyncStorage.getItem(STORAGE_KEYS.dailyLogs(baby.id));
       if (savedLogs) {
         setLogs(JSON.parse(savedLogs));
       }
@@ -33,36 +35,10 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
   };
 
   const getTodayCount = (type) => {
-    const today = new Date().toDateString();
-    return logs[type].filter(log => {
-      return new Date(log.timestamp).toDateString() === today;
-    }).length;
+    return countToday(logs[type]);
   };
 
-  const toBengaliNumber = (num) => {
-    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return String(num).split('').map(d => bengaliDigits[parseInt(d)] || d).join('');
-  };
-
-  const calculateAgeBengali = (birthDate) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    const diffTime = Math.abs(today - birth);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
-    const months = Math.floor(diffDays / 30);
-    const days = diffDays % 30;
-    
-    if (months === 0) {
-      return `${toBengaliNumber(diffDays)} দিন`;
-    } else if (months < 12) {
-      return `${toBengaliNumber(months)} মাস ${toBengaliNumber(days)} দিন`;
-    } else {
-      const years = Math.floor(months / 12);
-      const remainingMonths = months % 12;
-      return `${toBengaliNumber(years)} বছর ${toBengaliNumber(remainingMonths)} মাস`;
-    }
-  };
+  const ageInfo = calculateAge(baby.birth_date);
 
   const handleResetApp = () => {
     Alert.alert(
@@ -104,16 +80,8 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
     );
   };
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'সুপ্রভাত';
-    if (hour < 17) return 'শুভ অপরাহ্ন';
-    if (hour < 21) return 'শুভ সন্ধ্যা';
-    return 'শুভ রাত্রি';
-  };
-
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       
       {/* DEVELOPMENT RESET BUTTON */}
       <View style={{
@@ -128,7 +96,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
             width: 44,
             height: 44,
             borderRadius: 22,
-            backgroundColor: '#F44336',
+            backgroundColor: COLORS.danger,
             justifyContent: 'center',
             alignItems: 'center',
             shadowColor: '#000',
@@ -146,26 +114,26 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
         
         {/* HAFSA AAPA GREETING CARD */}
         <View style={{
-          backgroundColor: '#E8F5E9',
+          backgroundColor: COLORS.primaryLight,
           padding: 24,
           borderRadius: 16,
           marginBottom: 32,
           borderLeftWidth: 6,
-          borderLeftColor: '#4CAF50'
+          borderLeftColor: COLORS.primary
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
             <Text style={{ fontSize: 36, marginRight: 12 }}>💚</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#2E7D32' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.primaryDark }}>
               হাফসা আপা বলছে
             </Text>
           </View>
           
-          <Text style={{ fontSize: 18, color: '#1B5E20', marginBottom: 12, lineHeight: 26 }}>
+          <Text style={{ fontSize: 18, color: COLORS.primaryDarker, marginBottom: 12, lineHeight: 26 }}>
             {getGreeting()}! আসসালামু আলাইকুম!
           </Text>
           
-          <Text style={{ fontSize: 17, color: '#2E7D32', marginBottom: 16, lineHeight: 24 }}>
-            আজ {baby.name} এর {calculateAgeBengali(baby.birth_date)} হলো! 🎉
+          <Text style={{ fontSize: 17, color: COLORS.primaryDark, marginBottom: 16, lineHeight: 24 }}>
+            আজ {baby.name} এর {ageInfo.bengaliAge} হলো! 🎉
           </Text>
           
           <Text style={{ fontSize: 15, color: '#388E3C', lineHeight: 22 }}>
@@ -180,7 +148,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
             }}
             style={{
               marginTop: 16,
-              backgroundColor: '#4CAF50',
+              backgroundColor: COLORS.primary,
               padding: 14,
               borderRadius: 10,
               alignItems: 'center'
@@ -193,7 +161,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
         </View>
 
         {/* FEATURES SECTION HEADER */}
-        <Text style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 20, color: '#212121' }}>
+        <Text style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 20, color: COLORS.dark }}>
           📋 সব ফিচার
         </Text>
 
@@ -208,7 +176,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               onPress={onNavigateDailyLog}
               style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: COLORS.cardBg,
                 borderRadius: 16,
                 padding: 20,
                 shadowColor: '#000',
@@ -219,16 +187,16 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               }}
             >
               <Text style={{ fontSize: 40, marginBottom: 8 }}>📊</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#212121', marginBottom: 8 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
                 দৈনিক লগ
               </Text>
-              <Text style={{ fontSize: 14, color: '#666', marginBottom: 12 }}>
+              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 12 }}>
                 আজ:
               </Text>
-              <Text style={{ fontSize: 13, color: '#4CAF50' }}>
+              <Text style={{ fontSize: 13, color: COLORS.feed }}>
                 🍼 {toBengaliNumber(getTodayCount('feed'))} বার
               </Text>
-              <Text style={{ fontSize: 13, color: '#2196F3' }}>
+              <Text style={{ fontSize: 13, color: COLORS.sleep }}>
                 😴 {toBengaliNumber(getTodayCount('sleep'))} বার
               </Text>
             </TouchableOpacity>
@@ -238,7 +206,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               onPress={onNavigateVaccine}
               style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: COLORS.cardBg,
                 borderRadius: 16,
                 padding: 20,
                 shadowColor: '#000',
@@ -249,13 +217,13 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               }}
             >
               <Text style={{ fontSize: 40, marginBottom: 8 }}>💉</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#212121', marginBottom: 8 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
                 টিকা ট্র্যাকার
               </Text>
-              <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
+              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 8 }}>
                 EPI সূচি
               </Text>
-              <Text style={{ fontSize: 13, color: '#FF9800', fontWeight: 'bold' }}>
+              <Text style={{ fontSize: 13, color: COLORS.vaccine, fontWeight: 'bold' }}>
                 দেখুন →
               </Text>
             </TouchableOpacity>
@@ -270,7 +238,7 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               onPress={onNavigateGrowth}
               style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: COLORS.cardBg,
                 borderRadius: 16,
                 padding: 20,
                 shadowColor: '#000',
@@ -281,42 +249,45 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               }}
             >
               <Text style={{ fontSize: 40, marginBottom: 8 }}>📈</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#212121', marginBottom: 8 }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
                 বৃদ্ধি চার্ট
               </Text>
-              <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
+              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 8 }}>
                 ওজন ও উচ্চতা
               </Text>
-              <Text style={{ fontSize: 13, color: '#2196F3', fontWeight: 'bold' }}>
+              <Text style={{ fontSize: 13, color: COLORS.growth, fontWeight: 'bold' }}>
                 দেখুন →
               </Text>
             </TouchableOpacity>
 
-            {/* AI HELP CARD (Coming Soon) */}
+            {/* AI HELP CARD */}
             <TouchableOpacity
-              onPress={() => Alert.alert('শীঘ্রই আসছে', 'AI সাহায্য ফিচার শীঘ্রই যোগ করা হবে! 🤖')}
+              onPress={() => {
+                if (onNavigateChat) {
+                  onNavigateChat();
+                }
+              }}
               style={{
                 flex: 1,
-                backgroundColor: 'white',
+                backgroundColor: COLORS.cardBg,
                 borderRadius: 16,
                 padding: 20,
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.1,
                 shadowRadius: 4,
-                elevation: 3,
-                opacity: 0.7
+                elevation: 3
               }}
             >
-              <Text style={{ fontSize: 40, marginBottom: 8 }}>🤖</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#212121', marginBottom: 8 }}>
-                AI সাহায্য
+              <Text style={{ fontSize: 40, marginBottom: 8 }}>💚</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
+                হাফসা আপা
               </Text>
-              <Text style={{ fontSize: 14, color: '#666', marginBottom: 8 }}>
-                শীঘ্রই আসছে
+              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 8 }}>
+                AI সহায়ক
               </Text>
-              <Text style={{ fontSize: 13, color: '#9E9E9E' }}>
-                লক্ষণ পরীক্ষক
+              <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: 'bold' }}>
+                কথা বলুন →
               </Text>
             </TouchableOpacity>
 

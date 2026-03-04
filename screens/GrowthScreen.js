@@ -10,6 +10,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculatePercentile } from '../data/whoGrowthStandards';
+import { toBengaliNumber, calculateAgeInMonths, formatDateBengali } from '../utils/helpers';
+import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 
 export default function GrowthScreen({ baby, onBack }) {
   const [measurements, setMeasurements] = useState([]);
@@ -29,11 +31,11 @@ export default function GrowthScreen({ baby, onBack }) {
       }
     };
     migrate();
-  }, [baby.id]); // Reload when baby changes
+  }, [baby.id]);
 
   const loadMeasurements = async () => {
     try {
-      const saved = await AsyncStorage.getItem(`growth_measurements_${baby.id}`);
+      const saved = await AsyncStorage.getItem(STORAGE_KEYS.growthMeasurements(baby.id));
       if (saved) {
         setMeasurements(JSON.parse(saved));
       }
@@ -44,18 +46,10 @@ export default function GrowthScreen({ baby, onBack }) {
 
   const saveMeasurements = async (newMeasurements) => {
     try {
-      await AsyncStorage.setItem(`growth_measurements_${baby.id}`, JSON.stringify(newMeasurements));
+      await AsyncStorage.setItem(STORAGE_KEYS.growthMeasurements(baby.id), JSON.stringify(newMeasurements));
     } catch (error) {
       console.error('Error saving measurements:', error);
     }
-  };
-
-  const calculateAgeInMonths = (birthDate) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    const months = (today.getFullYear() - birth.getFullYear()) * 12 + 
-                   (today.getMonth() - birth.getMonth());
-    return months;
   };
 
   const handleAddMeasurement = () => {
@@ -90,41 +84,20 @@ export default function GrowthScreen({ baby, onBack }) {
     Alert.alert('সফল!', 'পরিমাপ সংরক্ষিত হয়েছে');
   };
 
-  const toBengaliNumber = (num) => {
-    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return String(num).split('').map(d => bengaliDigits[parseInt(d)] || d).join('');
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-    return `${toBengaliNumber(day)}-${toBengaliNumber(month)}-${toBengaliNumber(year)}`;
-  };
-
   const getStatusText = (status) => {
-    switch(status) {
-      case 'underweight': return 'কম ওজন';
-      case 'slightly_low': return 'একটু কম';
-      case 'normal': return 'স্বাভাবিক';
-      case 'slightly_high': return 'একটু বেশি';
-      case 'overweight': return 'বেশি ওজন';
-      default: return 'অজানা';
-    }
+    return TEXT.growthStatus[status] || 'অজানা';
   };
 
   // Check if baby hit a milestone weight
-  const checkMilestone = (weight) => {
+  const checkMilestone = (currentWeight) => {
     const milestones = [4, 5, 6, 7, 8, 9, 10]; // kg
     
     if (measurements.length < 2) return null;
     
     const previousWeight = measurements[1].weight;
     
-    // Find if we crossed a milestone
     const crossedMilestone = milestones.find(m => 
-      previousWeight < m && weight >= m
+      previousWeight < m && currentWeight >= m
     );
     
     return crossedMilestone;
@@ -144,14 +117,13 @@ export default function GrowthScreen({ baby, onBack }) {
     
     if (daysBetween === 0) return null;
     
-    // Convert to grams per month
     const gramsPerMonth = (weightGain * 1000 / daysBetween) * 30;
     
     return {
       gain: weightGain,
       days: daysBetween,
       gramsPerMonth: Math.round(gramsPerMonth),
-      isGood: gramsPerMonth >= 400 // 400g/month is minimum for first 6 months
+      isGood: gramsPerMonth >= 400
     };
   };
 
@@ -166,7 +138,7 @@ export default function GrowthScreen({ baby, onBack }) {
     return predictedWeight;
   };
 
-  // Simple ASCII growth chart
+  // Simple growth chart
   const renderSimpleChart = () => {
     if (measurements.length === 0) return null;
     
@@ -180,7 +152,7 @@ export default function GrowthScreen({ baby, onBack }) {
     
     return (
       <View style={{
-        backgroundColor: 'white',
+        backgroundColor: COLORS.cardBg,
         padding: 20,
         borderRadius: 12,
         marginBottom: 20
@@ -189,7 +161,6 @@ export default function GrowthScreen({ baby, onBack }) {
           📈 বৃদ্ধির গ্রাফ
         </Text>
         
-        {/* Simple bar chart */}
         {last5.map((m, i) => {
           const barHeight = ((m.weight - minWeight) / range) * 100;
           const percentile = calculatePercentile(m.ageMonths, m.weight);
@@ -197,12 +168,11 @@ export default function GrowthScreen({ baby, onBack }) {
           return (
             <View key={m.id} style={{ marginBottom: 16 }}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 }}>
-                <Text style={{ fontSize: 11, width: 70, color: '#666' }}>
-                  {formatDate(m.date)}
+                <Text style={{ fontSize: 11, width: 70, color: COLORS.gray }}>
+                  {formatDateBengali(m.date)}
                 </Text>
                 
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-end' }}>
-                  {/* Bar */}
                   <View style={{
                     width: `${Math.max(barHeight, 10)}%`,
                     height: 32,
@@ -218,7 +188,6 @@ export default function GrowthScreen({ baby, onBack }) {
                 </View>
               </View>
               
-              {/* WHO percentile indicator */}
               {percentile && (
                 <Text style={{ fontSize: 11, color: percentile.color, marginLeft: 70 }}>
                   {getStatusText(percentile.status)}
@@ -233,21 +202,21 @@ export default function GrowthScreen({ baby, onBack }) {
           marginTop: 16,
           paddingTop: 16,
           borderTopWidth: 1,
-          borderTopColor: '#E0E0E0',
+          borderTopColor: COLORS.border,
           flexDirection: 'row',
           justifyContent: 'space-around'
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, backgroundColor: '#F44336', borderRadius: 2, marginRight: 6 }} />
-            <Text style={{ fontSize: 11, color: '#666' }}>কম</Text>
+            <View style={{ width: 12, height: 12, backgroundColor: COLORS.danger, borderRadius: 2, marginRight: 6 }} />
+            <Text style={{ fontSize: 11, color: COLORS.gray }}>কম</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, backgroundColor: '#4CAF50', borderRadius: 2, marginRight: 6 }} />
-            <Text style={{ fontSize: 11, color: '#666' }}>স্বাভাবিক</Text>
+            <View style={{ width: 12, height: 12, backgroundColor: COLORS.success, borderRadius: 2, marginRight: 6 }} />
+            <Text style={{ fontSize: 11, color: COLORS.gray }}>স্বাভাবিক</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, backgroundColor: '#FF9800', borderRadius: 2, marginRight: 6 }} />
-            <Text style={{ fontSize: 11, color: '#666' }}>সতর্ক</Text>
+            <View style={{ width: 12, height: 12, backgroundColor: COLORS.warning, borderRadius: 2, marginRight: 6 }} />
+            <Text style={{ fontSize: 11, color: COLORS.gray }}>সতর্ক</Text>
           </View>
         </View>
       </View>
@@ -259,15 +228,15 @@ export default function GrowthScreen({ baby, onBack }) {
     calculatePercentile(currentMeasurement.ageMonths, currentMeasurement.weight) : null;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
         minHeight: 60,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: COLORS.background,
         borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0'
+        borderBottomColor: COLORS.border
       }}>
         <TouchableOpacity
           onPress={onBack}
@@ -278,8 +247,8 @@ export default function GrowthScreen({ baby, onBack }) {
           }}
         >
           <Text style={{ fontSize: 28, marginRight: 8 }}>←</Text>
-          <Text style={{ fontSize: 18, color: '#4CAF50', fontWeight: 'bold' }}>
-            ফিরে যান
+          <Text style={{ fontSize: 18, color: COLORS.primary, fontWeight: 'bold' }}>
+            {TEXT.messages.goBack}
           </Text>
         </TouchableOpacity>
       </View>
@@ -289,7 +258,7 @@ export default function GrowthScreen({ baby, onBack }) {
           <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>
             📈 বৃদ্ধি চার্ট
           </Text>
-          <Text style={{ fontSize: 16, color: '#666' }}>
+          <Text style={{ fontSize: 16, color: COLORS.gray }}>
             ওজন ও উচ্চতা ট্র্যাকিং
           </Text>
         </View>
@@ -319,36 +288,36 @@ export default function GrowthScreen({ baby, onBack }) {
         {/* MILESTONE CELEBRATION */}
         {measurements.length > 0 && checkMilestone(measurements[0].weight) && (
           <View style={{
-            backgroundColor: '#E8F5E9',
+            backgroundColor: COLORS.primaryLight,
             padding: 24,
             borderRadius: 16,
             marginBottom: 20,
             borderWidth: 2,
-            borderColor: '#4CAF50',
+            borderColor: COLORS.primary,
             alignItems: 'center'
           }}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>🎉</Text>
             
-            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#2E7D32', marginBottom: 8, textAlign: 'center' }}>
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: COLORS.primaryDark, marginBottom: 8, textAlign: 'center' }}>
               বড় খবর!
             </Text>
             
-            <Text style={{ fontSize: 20, color: '#1B5E20', marginBottom: 16, textAlign: 'center' }}>
+            <Text style={{ fontSize: 20, color: COLORS.primaryDarker, marginBottom: 16, textAlign: 'center' }}>
               {baby.name} আজ {toBengaliNumber(checkMilestone(measurements[0].weight))} কেজি হয়েছে!
             </Text>
             
-            <Text style={{ fontSize: 16, color: '#2E7D32', marginBottom: 4, textAlign: 'center' }}>
+            <Text style={{ fontSize: 16, color: COLORS.primaryDark, marginBottom: 4, textAlign: 'center' }}>
               এই বয়সে {toBengaliNumber(checkMilestone(measurements[0].weight))} কেজি মানে:
             </Text>
             
             <View style={{ marginTop: 12, alignItems: 'flex-start', width: '100%', paddingHorizontal: 20 }}>
-              <Text style={{ fontSize: 15, color: '#2E7D32', marginBottom: 6 }}>
+              <Text style={{ fontSize: 15, color: COLORS.primaryDark, marginBottom: 6 }}>
                 ✅ স্বাভাবিক বৃদ্ধি
               </Text>
-              <Text style={{ fontSize: 15, color: '#2E7D32', marginBottom: 6 }}>
+              <Text style={{ fontSize: 15, color: COLORS.primaryDark, marginBottom: 6 }}>
                 ✅ পুষ্টি ঠিক আছে
               </Text>
-              <Text style={{ fontSize: 15, color: '#2E7D32', marginBottom: 6 }}>
+              <Text style={{ fontSize: 15, color: COLORS.primaryDark, marginBottom: 6 }}>
                 ✅ খাওয়া ভালো হচ্ছে
               </Text>
             </View>
@@ -357,7 +326,7 @@ export default function GrowthScreen({ baby, onBack }) {
               onPress={() => Alert.alert('শেয়ার করুন', 'এই মাইলস্টোন পরিবারের সাথে শেয়ার করার ফিচার শীঘ্রই আসছে! 💚')}
               style={{
                 marginTop: 16,
-                backgroundColor: '#4CAF50',
+                backgroundColor: COLORS.primary,
                 paddingHorizontal: 24,
                 paddingVertical: 12,
                 borderRadius: 8
@@ -374,7 +343,7 @@ export default function GrowthScreen({ baby, onBack }) {
           <TouchableOpacity
             onPress={() => setShowAddForm(true)}
             style={{
-              backgroundColor: '#4CAF50',
+              backgroundColor: COLORS.primary,
               padding: 16,
               borderRadius: 12,
               alignItems: 'center',
@@ -387,7 +356,7 @@ export default function GrowthScreen({ baby, onBack }) {
           </TouchableOpacity>
         ) : (
           <View style={{
-            backgroundColor: 'white',
+            backgroundColor: COLORS.cardBg,
             padding: 20,
             borderRadius: 12,
             marginBottom: 20
@@ -404,7 +373,7 @@ export default function GrowthScreen({ baby, onBack }) {
               placeholder="উদাহরণ: 5.2"
               style={{
                 borderWidth: 1,
-                borderColor: '#E0E0E0',
+                borderColor: COLORS.border,
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 16,
@@ -420,7 +389,7 @@ export default function GrowthScreen({ baby, onBack }) {
               placeholder="উদাহরণ: 55"
               style={{
                 borderWidth: 1,
-                borderColor: '#E0E0E0',
+                borderColor: COLORS.border,
                 borderRadius: 8,
                 padding: 12,
                 fontSize: 16,
@@ -433,14 +402,14 @@ export default function GrowthScreen({ baby, onBack }) {
                 onPress={handleAddMeasurement}
                 style={{
                   flex: 1,
-                  backgroundColor: '#4CAF50',
+                  backgroundColor: COLORS.primary,
                   padding: 14,
                   borderRadius: 8,
                   alignItems: 'center'
                 }}
               >
                 <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
-                  সংরক্ষণ করুন
+                  {TEXT.messages.save}
                 </Text>
               </TouchableOpacity>
 
@@ -452,14 +421,14 @@ export default function GrowthScreen({ baby, onBack }) {
                 }}
                 style={{
                   flex: 1,
-                  backgroundColor: '#E0E0E0',
+                  backgroundColor: COLORS.border,
                   padding: 14,
                   borderRadius: 8,
                   alignItems: 'center'
                 }}
               >
-                <Text style={{ color: '#666', fontSize: 16, fontWeight: 'bold' }}>
-                  বাতিল করুন
+                <Text style={{ color: COLORS.gray, fontSize: 16, fontWeight: 'bold' }}>
+                  {TEXT.messages.cancel}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -487,7 +456,7 @@ export default function GrowthScreen({ baby, onBack }) {
               
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
                 <View>
-                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 4 }}>
                     গত {toBengaliNumber(velocity.days)} দিনে:
                   </Text>
                   <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1976D2' }}>
@@ -496,10 +465,10 @@ export default function GrowthScreen({ baby, onBack }) {
                 </View>
                 
                 <View>
-                  <Text style={{ fontSize: 14, color: '#666', marginBottom: 4 }}>
+                  <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 4 }}>
                     প্রতি মাসে গড়:
                   </Text>
-                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: velocity.isGood ? '#4CAF50' : '#FF9800' }}>
+                  <Text style={{ fontSize: 20, fontWeight: 'bold', color: velocity.isGood ? COLORS.success : COLORS.warning }}>
                     {toBengaliNumber(velocity.gramsPerMonth)} গ্রাম
                   </Text>
                 </View>
@@ -516,7 +485,7 @@ export default function GrowthScreen({ baby, onBack }) {
                 </Text>
                 
                 {predictNextWeight() && (
-                  <Text style={{ fontSize: 14, color: '#666' }}>
+                  <Text style={{ fontSize: 14, color: COLORS.gray }}>
                     এই গতিতে চললে পরের মাসে হবে: {toBengaliNumber(predictNextWeight().toFixed(1))} কেজি
                   </Text>
                 )}
@@ -533,16 +502,16 @@ export default function GrowthScreen({ baby, onBack }) {
 
         {measurements.length === 0 ? (
           <View style={{
-            backgroundColor: 'white',
+            backgroundColor: COLORS.cardBg,
             padding: 24,
             borderRadius: 12,
             alignItems: 'center'
           }}>
             <Text style={{ fontSize: 40, marginBottom: 12 }}>📊</Text>
-            <Text style={{ fontSize: 16, color: '#666', textAlign: 'center' }}>
+            <Text style={{ fontSize: 16, color: COLORS.gray, textAlign: 'center' }}>
               এখনো কোনো পরিমাপ যোগ করা হয়নি।
             </Text>
-            <Text style={{ fontSize: 14, color: '#999', marginTop: 8, textAlign: 'center' }}>
+            <Text style={{ fontSize: 14, color: COLORS.lightGray, marginTop: 8, textAlign: 'center' }}>
               শিশুর ওজন ও উচ্চতা পরিমাপ করে যোগ করুন।
             </Text>
           </View>
@@ -553,7 +522,7 @@ export default function GrowthScreen({ baby, onBack }) {
               <View
                 key={measurement.id}
                 style={{
-                  backgroundColor: 'white',
+                  backgroundColor: COLORS.cardBg,
                   padding: 16,
                   borderRadius: 12,
                   marginBottom: 12,
@@ -563,13 +532,13 @@ export default function GrowthScreen({ baby, onBack }) {
               >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                   <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-                    {formatDate(measurement.date)}
+                    {formatDateBengali(measurement.date)}
                   </Text>
-                  <Text style={{ fontSize: 14, color: '#666' }}>
+                  <Text style={{ fontSize: 14, color: COLORS.gray }}>
                     বয়স: {toBengaliNumber(measurement.ageMonths)} মাস
                   </Text>
                 </View>
-                <Text style={{ fontSize: 15, color: '#666' }}>
+                <Text style={{ fontSize: 15, color: COLORS.gray }}>
                   ওজন: {toBengaliNumber(measurement.weight.toFixed(1))} কেজি | 
                   উচ্চতা: {toBengaliNumber(measurement.height.toFixed(1))} সেমি
                 </Text>
@@ -584,12 +553,12 @@ export default function GrowthScreen({ baby, onBack }) {
         )}
 
         <View style={{
-          backgroundColor: '#E8F5E9',
+          backgroundColor: COLORS.primaryLight,
           padding: 16,
           borderRadius: 12,
           marginTop: 16
         }}>
-          <Text style={{ fontSize: 14, color: '#2E7D32' }}>
+          <Text style={{ fontSize: 14, color: COLORS.primaryDark }}>
             💡 টিপস: প্রতি মাসে একবার ওজন ও উচ্চতা মাপুন। 
             WHO মান অনুযায়ী স্বাভাবিক বৃদ্ধি নিশ্চিত করুন।
           </Text>
