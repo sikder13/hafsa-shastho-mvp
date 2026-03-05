@@ -73,7 +73,18 @@ export function AppProvider({ children }) {
   useEffect(() => {
     loadAllData();
   }, []);
+// Reset todayMotherLog when date changes (midnight reset)
+useEffect(() => {
+    const checkDateInterval = setInterval(() => {
+      const today = new Date().toISOString().split('T')[0];
+      if (todayMotherLog && todayMotherLog.date !== today) {
+        console.log('📅 New day detected — resetting today\'s mother log');
+        setTodayMotherLog(null);
+      }
+    }, 60000); // Check every minute
 
+    return () => clearInterval(checkDateInterval);
+  }, [todayMotherLog]);
   // Reload baby-specific data when baby profile changes
   useEffect(() => {
     if (baby?.id) {
@@ -103,11 +114,14 @@ export function AppProvider({ children }) {
         await loadBabyData(babyData.id);
       }
 
-      // Load mother's today log
+      // Load mother's today log (only if date matches today)
       const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       const savedMotherLog = await AsyncStorage.getItem(STORAGE_KEYS.motherLog(today));
-      if (savedMotherLog) {
-        setTodayMotherLog(safeJSONParse(savedMotherLog, null));
+      const parsedMotherLog = safeJSONParse(savedMotherLog, null);
+      if (parsedMotherLog && parsedMotherLog.date === today) {
+        setTodayMotherLog(parsedMotherLog);
+      } else {
+        setTodayMotherLog(null); // New day — no check-in yet
       }
 
       // Load mother log history
