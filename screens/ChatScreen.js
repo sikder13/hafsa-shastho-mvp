@@ -1,76 +1,107 @@
 // screens/ChatScreen.js
-// Production chat interface with full Hafsa integration
+// Hafsa Aapa AI Chat — STREAMING responses + full context
+// Words appear as generated — first word in 1-2 seconds
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { sendMessageToClaude } from '../services/claudeAPI';
-import { buildHafsaPrompt, detectEmergency } from '../services/hafsaPrompt';
-import { buildBabyContext } from '../utils/contextBuilder';
+import { streamMessageToClaude, sendMessageToClaude } from '../services/claudeAPI';
+import { buildHafsaPrompt, buildOpeningMessage, detectEmergency } from '../services/hafsaPrompt';
+import { buildFullContext } from '../utils/contextBuilder';
 import { processAutoLog, formatAutoLogConfirmation } from '../services/autoLogger';
+import { useApp } from '../context/AppContext';
 import MessageBubble from '../components/MessageBubble';
+import { COLORS } from '../utils/constants';
 
 export default function ChatScreen({ baby, onBack }) {
+  const {
+    motherProfile,
+    logs,
+    todayMotherLog,
+    motherLogHistory,
+    vaccineStatus,
+    growthMeasurements
+  } = useApp();
+
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [babyContext, setBabyContext] = useState(null);
+  const [streamingText, setStreamingText] = useState('');
+  const [suggestedQuestions, setSuggestedQuestions] = useState([]);
   const scrollViewRef = useRef(null);
+  const abortRef = useRef(null);
+  const contextRef = useRef(null);
 
   useEffect(() => {
     initializeChat();
+    return () => {
+      // Cleanup: abort any ongoing stream on unmount
+      if (abortRef.current) abortRef.current();
+    };
   }, []);
 
   const initializeChat = async () => {
-    // Load baby context
-    const context = await buildBabyContext(baby);
-    setBabyContext(context);
-    
-    // Add welcome message
-    const welcomeMessage = {
+    const context = await buildFullContext({
+      baby,
+      motherProfile,
+      logs,
+      todayMotherLog,
+      motherLogHistory,
+      vaccineStatus,
+      growthMeasurements
+    });
+
+    contextRef.current = context;
+
+    if (context.suggestedQuestions && context.suggestedQuestions.length > 0) {
+      setSuggestedQuestions(context.suggestedQuestions);
+    }
+
+    const openingText = buildOpeningMessage(context);
+
+    setMessages([{
       id: Date.now(),
       role: 'assistant',
-      content: `আসসালামু আলাইকুম! আমি হাফসা আপা। ${baby.name} এর ব্যাপারে যেকোনো প্রশ্ন করুন। 💚`,
+      content: openingText,
       timestamp: new Date(),
       isWelcome: true
-    };
-    
-    setMessages([welcomeMessage]);
+    }]);
   };
 
-  const handleSend = async () => {
-    if (!inputText.trim()) return;
-    
-    const userMessage = inputText.trim();
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+  }, []);
+
+  const handleSend = async (messageText) => {
+    const userMessage = (messageText || inputText).trim();
+    if (!userMessage || loading) return;
+
     setInputText('');
-    
-    // Check for emergency keywords
+    setSuggestedQuestions([]);
+
+    // Emergency check
     if (detectEmergency(userMessage)) {
       Alert.alert(
         '⚠️ জরুরি',
-        'আপনার শিশুকে এখনই ডাক্তার দেখান বা জরুরি সেবা নিন।\n\nজরুরি লক্ষণ গুরুত্বপূর্ণ।',
+        'আপনার শিশুকে এখনই ডাক্তার দেখান বা জরুরি সেবা নিন।\n\nজরুরি সেবা: ৯৯৯',
         [
           { text: 'ঠিক আছে', style: 'cancel' },
-          { 
-            text: '📞 জরুরি সেবা', 
-            onPress: () => {
-              Alert.alert('জরুরি সেবা', '৯৯৯ এ কল করুন');
-            }
-          }
+          { text: '📞 ৯৯৯ কল', onPress: () => Alert.alert('জরুরি সেবা', '৯৯৯ এ কল করুন') }
         ]
       );
     }
-    
+
     // Add user message
     const newUserMsg = {
       id: Date.now(),
@@ -78,116 +109,167 @@ export default function ChatScreen({ baby, onBack }) {
       content: userMessage,
       timestamp: new Date()
     };
-    
+
     setMessages(prev => [...prev, newUserMsg]);
     setLoading(true);
-    
-    // Scroll to bottom
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-    
+    setStreamingText('');
+    scrollToBottom();
+
     try {
-      // Build system prompt with current context
-      const systemPrompt = buildHafsaPrompt(babyContext);
-      
-      // Format conversation for Claude
+      // Rebuild context
+      const freshContext = await buildFullContext({
+        baby,
+        motherProfile,
+        logs,
+        todayMotherLog,
+        motherLogHistory,
+        vaccineStatus,
+        growthMeasurements
+      });
+      contextRef.current = freshContext;
+
+      const systemPrompt = buildHafsaPrompt(freshContext);
+
       const conversationHistory = messages
-        .filter(m => !m.isWelcome) // Exclude welcome message from history
+        .filter(m => !m.isWelcome)
         .concat([newUserMsg])
-        .map(msg => ({
-          role: msg.role,
-          content: msg.content
-        }));
-      
-      // Send to Claude
+        .map(msg => ({ role: msg.role, content: msg.content }));
+
+      // Auto-log from user message (question-aware)
+      const autoLogResult = await processAutoLog(userMessage, baby.id);
+
+      // Try streaming first
+      let streamWorked = false;
+
+      const abort = streamMessageToClaude(
+        conversationHistory,
+        systemPrompt,
+        // onChunk — update streaming text as words arrive
+        (chunk, fullText) => {
+          streamWorked = true;
+          setStreamingText(fullText);
+          scrollToBottom();
+        },
+        // onDone — finalize message
+        ({ fullText }) => {
+          if (fullText && fullText.trim()) {
+            const hafsaMsg = {
+              id: Date.now() + 1,
+              role: 'assistant',
+              content: fullText,
+              timestamp: new Date(),
+              autoLogged: autoLogResult.logged,
+              autoLogMessage: autoLogResult.logged
+                ? formatAutoLogConfirmation(autoLogResult.activities)
+                : null
+            };
+
+            setMessages(prev => [...prev, hafsaMsg]);
+            setStreamingText('');
+            setLoading(false);
+            scrollToBottom();
+          } else if (!streamWorked) {
+            // Stream returned empty — fallback to non-streaming
+            fallbackSend(conversationHistory, systemPrompt, autoLogResult);
+          } else {
+            setStreamingText('');
+            setLoading(false);
+          }
+        },
+        // onError — fallback to non-streaming
+        (error) => {
+          console.log('Stream error, falling back:', error);
+          setStreamingText('');
+          fallbackSend(conversationHistory, systemPrompt, autoLogResult);
+        }
+      );
+
+      abortRef.current = abort;
+
+    } catch (error) {
+      Alert.alert('ত্রুটি', 'কিছু সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      console.error('Chat error:', error);
+      setLoading(false);
+      setStreamingText('');
+    }
+  };
+
+  // Fallback: non-streaming API call
+  const fallbackSend = async (conversationHistory, systemPrompt, autoLogResult) => {
+    try {
       const result = await sendMessageToClaude(conversationHistory, systemPrompt);
-      
+
       if (result.success) {
-        // CRITICAL FIX: Process auto-logging from USER'S message, not Hafsa's response!
-        const autoLogResult = await processAutoLog(userMessage, baby.id);
-        
-        // Create Hafsa's message
         const hafsaMsg = {
           id: Date.now() + 1,
           role: 'assistant',
           content: result.message,
           timestamp: new Date(),
-          autoLogged: autoLogResult.logged,
-          autoLogMessage: autoLogResult.logged ? 
-            formatAutoLogConfirmation(autoLogResult.activities) : null
+          autoLogged: autoLogResult?.logged || false,
+          autoLogMessage: autoLogResult?.logged
+            ? formatAutoLogConfirmation(autoLogResult.activities)
+            : null
         };
-        
+
         setMessages(prev => [...prev, hafsaMsg]);
-        
-        // Refresh context after auto-logging
-        if (autoLogResult.logged) {
-          const updatedContext = await buildBabyContext(baby);
-          setBabyContext(updatedContext);
-        }
-        
-        // Scroll to bottom
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-        
+        scrollToBottom();
       } else {
         Alert.alert('ত্রুটি', result.message);
       }
-      
     } catch (error) {
       Alert.alert('ত্রুটি', 'কিছু সমস্যা হয়েছে। আবার চেষ্টা করুন।');
-      console.error('Chat error:', error);
     } finally {
       setLoading(false);
+      setStreamingText('');
     }
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
-      
+
       {/* HEADER */}
       <View style={{
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: '#E8F5E9',
+        backgroundColor: COLORS.primaryLight,
         borderBottomWidth: 1,
-        borderBottomColor: '#C8E6C9'
+        borderBottomColor: COLORS.primaryBorder
       }}>
-        <TouchableOpacity 
-          onPress={onBack} 
+        <TouchableOpacity
+          onPress={() => {
+            if (abortRef.current) abortRef.current();
+            onBack();
+          }}
           style={{ marginRight: 12, padding: 4 }}
         >
           <Text style={{ fontSize: 24 }}>←</Text>
         </TouchableOpacity>
-        
+
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={{ fontSize: 24, marginRight: 8 }}>💚</Text>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#2E7D32' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark }}>
               হাফসা আপা
             </Text>
           </View>
-          <Text style={{ fontSize: 13, color: '#4CAF50', marginTop: 2 }}>
-            {baby.name} এর AI সহায়ক
+          <Text style={{ fontSize: 13, color: COLORS.primary, marginTop: 2 }}>
+            {motherProfile?.name ? `${motherProfile.name} ও ${baby.name} এর সহায়ক` : `${baby.name} এর AI সহায়ক`}
           </Text>
         </View>
       </View>
 
       {/* MESSAGES */}
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <ScrollView 
+        <ScrollView
           ref={scrollViewRef}
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16 }}
-          onContentSizeChange={() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
+          onContentSizeChange={scrollToBottom}
         >
           {messages.map((msg) => (
             <MessageBubble
@@ -196,9 +278,64 @@ export default function ChatScreen({ baby, onBack }) {
               isUser={msg.role === 'user'}
             />
           ))}
-          
-          {loading && (
-            <View style={{ 
+
+          {/* SUGGESTED QUESTIONS */}
+          {suggestedQuestions.length > 0 && messages.length <= 1 && !loading && (
+            <View style={{ marginTop: 8, marginBottom: 12 }}>
+              <Text style={{ fontSize: 13, color: COLORS.gray, marginBottom: 8 }}>
+                জিজ্ঞেস করতে পারেন:
+              </Text>
+              {suggestedQuestions.map((q, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => handleSend(q)}
+                  style={{
+                    backgroundColor: COLORS.white,
+                    borderWidth: 1.5,
+                    borderColor: COLORS.primaryBorder,
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    marginBottom: 8,
+                    alignSelf: 'flex-start'
+                  }}
+                >
+                  <Text style={{ fontSize: 14, color: COLORS.primaryDark }}>
+                    {q}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* STREAMING RESPONSE — Shows text as it arrives */}
+          {loading && streamingText ? (
+            <View style={{
+              alignSelf: 'flex-start',
+              maxWidth: '85%',
+              backgroundColor: 'white',
+              borderRadius: 16,
+              borderTopLeftRadius: 4,
+              padding: 12,
+              paddingHorizontal: 16,
+              borderWidth: 1,
+              borderColor: '#E0E0E0',
+              marginBottom: 12
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ fontSize: 14, marginRight: 6 }}>💚</Text>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: COLORS.primaryDark }}>
+                  হাফসা আপা
+                </Text>
+              </View>
+              <Text style={{ fontSize: 15, color: '#333', lineHeight: 24 }}>
+                {streamingText}
+                <Text style={{ color: COLORS.primary }}>▊</Text>
+              </Text>
+            </View>
+          ) : loading ? (
+            // Show thinking indicator before first chunk arrives
+            <View style={{
               alignSelf: 'flex-start',
               padding: 12,
               paddingHorizontal: 16,
@@ -210,18 +347,21 @@ export default function ChatScreen({ baby, onBack }) {
               alignItems: 'center',
               marginBottom: 12
             }}>
-              <ActivityIndicator color="#4CAF50" size="small" />
-              <Text style={{ marginLeft: 12, color: '#666', fontSize: 14 }}>
-                হাফসা আপা টাইপ করছে...
-              </Text>
+              <Text style={{ fontSize: 20, marginRight: 8 }}>💚</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ color: COLORS.primary, fontSize: 22, marginRight: 2 }}>•</Text>
+                <Text style={{ color: COLORS.primary, fontSize: 22, marginRight: 2, opacity: 0.6 }}>•</Text>
+                <Text style={{ color: COLORS.primary, fontSize: 22, opacity: 0.3 }}>•</Text>
+              </View>
             </View>
-          )}
+          ) : null}
         </ScrollView>
 
         {/* INPUT */}
         <View style={{
           flexDirection: 'row',
-          padding: 16,
+          padding: 12,
+          paddingHorizontal: 16,
           backgroundColor: 'white',
           borderTopWidth: 1,
           borderTopColor: '#E0E0E0'
@@ -243,14 +383,14 @@ export default function ChatScreen({ baby, onBack }) {
             }}
             multiline
             editable={!loading}
-            onSubmitEditing={handleSend}
+            onSubmitEditing={() => handleSend()}
           />
-          
+
           <TouchableOpacity
-            onPress={handleSend}
+            onPress={() => handleSend()}
             disabled={loading || !inputText.trim()}
             style={{
-              backgroundColor: loading || !inputText.trim() ? '#BDBDBD' : '#4CAF50',
+              backgroundColor: loading || !inputText.trim() ? '#BDBDBD' : COLORS.primary,
               width: 48,
               height: 48,
               borderRadius: 24,
@@ -262,7 +402,7 @@ export default function ChatScreen({ baby, onBack }) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-      
+
     </SafeAreaView>
   );
 }

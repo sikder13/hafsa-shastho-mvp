@@ -1,52 +1,109 @@
 // services/autoLogger.js
 // Detects activities mentioned in conversation and auto-logs them
+// KEY FIX: Distinguishes questions/queries from action statements
+// "দুধ খাওয়ালাম" (I fed) → LOG
+// "কয়বার দুধ খেয়েছে?" (How many times fed?) → DO NOT LOG
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// ============================================================
+// QUESTION DETECTION — Must check BEFORE activity detection
+// ============================================================
+
+const QUESTION_INDICATORS = [
+  // Bengali question words
+  'কয়বার', 'কতবার', 'কত বার', 'কখন', 'কেন', 'কি ', 'কী ',
+  'কিভাবে', 'কীভাবে', 'কোথায়', 'কার', 'কাকে', 'কোন',
+  'কতক্ষণ', 'কত দিন', 'কতদিন',
+  // Question markers
+  '?', '؟',
+  // Common question patterns
+  'কি করব', 'কী করব', 'কি করা', 'কী করা',
+  'ঠিক আছে কি', 'ঠিক আছে কী', 'ঠিক কি',
+  'স্বাভাবিক কি', 'স্বাভাবিক কী', 'নরমাল কি', 'নরমাল কী',
+  'কেমন ', 'কেমনে',
+  'দরকার কি', 'দরকার কী', 'লাগবে কি', 'লাগবে কী',
+  'উচিত কি', 'উচিত কী',
+  'পারি কি', 'পারি কী', 'পারব কি', 'পারব কী',
+  'হবে কি', 'হবে কী',
+  'করব কি', 'করব কী',
+  'দেব কি', 'দেব কী', 'দিব কি', 'দিব কী',
+  'খাওয়াব কি', 'খাওয়াব কী',
+  'শুরু করব', 'শুরু করি',
+  'কতটুকু', 'কত টুকু',
+  // Should/need patterns (asking for advice, not stating action)
+  'উচিত', 'দরকার', 'লাগবে', 'প্রয়োজন',
+  'ভালো হবে', 'ভালো হয়',
+  'পরামর্শ', 'সাজেশন'
+];
+
 /**
- * Process Claude's response and auto-log any detected activities
- * @param {string} responseText - Claude's response message
- * @param {string} babyId - Baby's ID for storage
- * @returns {Promise<Object>} - {logged: boolean, activities: Array, error?: string}
+ * Check if a message is a question or request for information
+ * @param {string} text - User's message
+ * @returns {boolean} True if this is a question (should NOT auto-log)
  */
-export async function processAutoLog(responseText, babyId) {
+function isQuestion(text) {
+  if (!text || typeof text !== 'string') return false;
+  const lower = text.toLowerCase().trim();
+
+  // Check for question indicators
+  return QUESTION_INDICATORS.some(indicator =>
+    lower.includes(indicator.toLowerCase())
+  );
+}
+
+// ============================================================
+// MAIN AUTO-LOG FUNCTION
+// ============================================================
+
+/**
+ * Process a user message and auto-log detected activities
+ * @param {string} messageText - User's message
+ * @param {string} babyId - Baby's ID for storage
+ * @returns {Promise<Object>} - {logged, activities, error?}
+ */
+export async function processAutoLog(messageText, babyId) {
   try {
-    // Detect activities in the response
-    const detectedActivities = detectActivities(responseText);
-    
+    // CRITICAL: If this is a question, DO NOT auto-log
+    if (isQuestion(messageText)) {
+      console.log('🔍 Question detected, skipping auto-log:', messageText.substring(0, 50));
+      return { logged: false, activities: [] };
+    }
+
+    const detectedActivities = detectActivities(messageText);
+
     if (detectedActivities.length === 0) {
       return { logged: false, activities: [] };
     }
-    
+
     // Load existing logs
     const logs = await loadLogs(babyId);
-    
-    // Add new logs
     const updatedLogs = { ...logs };
     const loggedActivities = [];
-    
+
     for (const activity of detectedActivities) {
       const newLog = {
-        id: Date.now() + Math.random(), // Ensure unique ID
+        id: Date.now() + Math.random(),
         timestamp: new Date().toISOString(),
         type: activity.type,
-        autoLogged: true // Mark as auto-logged
+        source: 'auto_chat',
+        autoLogged: true,
+        details: null
       };
-      
-      updatedLogs[activity.type] = [newLog, ...updatedLogs[activity.type]];
+
+      updatedLogs[activity.type] = [newLog, ...(updatedLogs[activity.type] || [])];
       loggedActivities.push(activity);
     }
-    
-    // Save updated logs
+
     await AsyncStorage.setItem(`daily_logs_${babyId}`, JSON.stringify(updatedLogs));
-    
+
     console.log('✅ Auto-logged:', loggedActivities.map(a => a.type).join(', '));
-    
+
     return {
       logged: true,
       activities: loggedActivities
     };
-    
+
   } catch (error) {
     console.error('❌ Auto-log error:', error);
     return {
@@ -57,204 +114,114 @@ export async function processAutoLog(responseText, babyId) {
   }
 }
 
+// ============================================================
+// ACTIVITY DETECTION — Only for action statements
+// ============================================================
+
 /**
- * Detect activities mentioned in text
+ * Detect activities in text (only action statements, not questions)
  * @param {string} text - Text to analyze
  * @returns {Array} - Array of {type, confidence}
  */
 function detectActivities(text) {
   const activities = [];
-  
-  // Validate input
-  if (!text || typeof text !== 'string') {
-    return activities;
-  }
-  
+
+  if (!text || typeof text !== 'string') return activities;
+
   const lowerText = text.toLowerCase().trim();
-  
+
   // FOOD FIRST (check before feed to avoid conflicts)
-  // Food patterns - MOST SPECIFIC PHRASES FIRST
-  const foodPatterns = [
-    // Compound phrases (most specific - check these FIRST)
-    'দাল ভাত খাওয়াইছি',
-    'দাল ভাত খাইয়েছি', 
-    'দাল ভাত খাওয়ালাম',
-    'দাল ভাত খাওয়াইলাম',
-    'দাল ভাত দিয়েছি',
-    'দাল ভাত দিলাম',
-    'দাল ভাত দিছি',
-    'খিচুড়ি খাইয়েছি',
-    'খিচুড়ি খাওয়ালাম',
-    'খিচুড়ি খাওয়াইলাম',
-    'খিচুড়ি দিয়েছি',
-    'খিচুড়ি দিলাম',
-    'ভাত খাওয়াইছি',
-    'ভাত খাওয়ালাম',
-    'ভাত খাইয়েছি',
-    'ভাত খাওয়াইলাম',
-    'ভাত দিয়েছি',
-    'ভাত দিলাম',
-    'ডিম খাওয়ালাম',
-    'ডিম খাইয়েছি',
-    'ডিম খাওয়াইলাম',
-    'ডিম দিয়েছি',
-    'ডিম দিলাম',
-    'কলা খাওয়ালাম',
-    'কলা খাইয়েছি',
-    'কলা খাওয়াইলাম',
-    'কলা দিয়েছি',
-    'কলা দিলাম',
-    'সবজি খাওয়ালাম',
-    'সবজি খাইয়েছি',
-    'সবজি খাওয়াইলাম',
-    'সবজি দিয়েছি',
-    'মাছ খাওয়ালাম',
-    'মাছ দিয়েছি',
-    'মুরগি খাওয়ালাম',
-    'মুরগি দিয়েছি',
-    
-    // General food keywords
-    'দাল ভাত',
-    'খাবার খাওয়াইছি',
-    'খাবার খাইয়েছি',
-    'খাবার খাওয়ালাম',
-    'খাবার খাওয়াইলাম',
-    'খাবার দিয়েছি',
-    'খাবার দিলাম',
-    'খাবার দিছি',
-    'সলিড ফুড',
-    'সলিড খাওয়ালাম',
-    'সলিড দিয়েছি',
-    'খিচুড়ি',
-    'আপেল',
-    'আম',
-    'পেঁপে',
-    'গাজর',
-    'আলু',
-    'মিষ্টি আলু',
-    'মিষ্টিআলু',
-    'সিরিয়াল',
-    'পিউরি',
-    'বিস্কুট',
-    'পাউরুটি',
-    'রুটি',
-    'ফল দিয়েছি',
-    'ফল খাওয়ালাম'
-  ];
-  
-  const foundFood = foodPatterns.some(pattern => lowerText.includes(pattern.toLowerCase()));
-  
+  const foundFood = FOOD_PATTERNS.some(p => lowerText.includes(p.toLowerCase()));
+
   if (foundFood) {
     activities.push({ type: 'food', confidence: 'high' });
-    // Return early - don't check for feed if food detected
-    // This prevents "ভাত খাওয়ালাম" from also logging as feed
+    return activities; // Don't also log as feed
   }
-  
-  // Feed patterns - ONLY if food NOT detected
-  if (!foundFood) {
-    const feedPatterns = [
-      'দুধ খাওয়ালাম',
-      'দুধ খাওয়াইলাম',
-      'দুধ খাওয়ালেম',
-      'দুধ খাইয়েছি',
-      'দুধ খাওয়াইছি',
-      'খাওয়ালাম দুধ',
-      'খাওয়াইলাম দুধ',
-      'দুধ দিয়েছি',
-      'দুধ দিলাম',
-      'দুধ দিছি',
-      'ফিড করেছি',
-      'ফিড দিয়েছি',
-      'ফিড দিলাম',
-      'দুধ খেয়েছে',
-      'খেয়েছে দুধ',
-      'ব্রেস্টফিড',
-      'স্তন্যপান করালাম',
-      'স্তন্যপান করাইলাম',
-      'বুকের দুধ দিয়েছি',
-      'বুকের দুধ দিলাম',
-      'বুকের দুধ',
-      'ফর্মুলা দিয়েছি',
-      'ফর্মুলা দিলাম',
-      'বোতলে দুধ',
-      'বোতল দিয়েছি',
-      'বোতল দিলাম'
-    ];
-    
-    if (feedPatterns.some(pattern => lowerText.includes(pattern.toLowerCase()))) {
-      activities.push({ type: 'feed', confidence: 'high' });
-    }
+
+  // FEED (only if food NOT detected)
+  if (FEED_PATTERNS.some(p => lowerText.includes(p.toLowerCase()))) {
+    activities.push({ type: 'feed', confidence: 'high' });
   }
-  
-  // Sleep patterns
-  const sleepPatterns = [
-    'ঘুমাচ্ছে',
-    'ঘুমিয়েছে',
-    'ঘুমাইছে',
-    'ঘুমায়েছে',
-    'ঘুমিয়ে গেছে',
-    'ঘুমায় গেছে',
-    'ঘুমাইয়া গেছে',
-    'ঘুম দিয়েছি',
-    'ঘুম দিলাম',
-    'ঘুম দিছি',
-    'ঘুম হয়েছে',
-    'শুয়ে আছে',
-    'শুইয়ে দিয়েছি',
-    'শুইয়ে দিলাম',
-    'ঘুমাতে দিয়েছি',
-    'ঘুমাইয়ে দিয়েছি',
-    'ঘুমের মধ্যে',
-    'ঘুমন্ত',
-    'ঘুমিয়ে পড়েছে',
-    'ঘুমায় পড়ছে'
-  ];
-  
-  if (sleepPatterns.some(pattern => lowerText.includes(pattern.toLowerCase()))) {
+
+  // SLEEP
+  if (SLEEP_PATTERNS.some(p => lowerText.includes(p.toLowerCase()))) {
     activities.push({ type: 'sleep', confidence: 'high' });
   }
-  
-  // Diaper patterns
-  const diaperPatterns = [
-    'ডায়াপার বদলালাম',
-    'ডায়াপার বদলাইলাম',
-    'ডায়াপার বদলেছি',
-    'ডায়াপার বদলাইছি',
-    'ডায়াপার চেঞ্জ',
-    'ডায়াপার পরিবর্তন',
-    'পায়খানা করেছে',
-    'পায়খানা হয়েছে',
-    'পায়খানা করছে',
-    'প্রস্রাব করেছে',
-    'প্রস্রাব হয়েছে',
-    'পটি করেছে',
-    'পটি হয়েছে',
-    'সু সু করেছে',
-    'পু পু করেছে',
-    'সু সু হয়েছে',
-    'পু পু হয়েছে',
-    'ডায়াপার ভিজে গেছে',
-    'ডায়াপার ভিজা',
-    'ডায়াপার নোংরা'
-  ];
-  
-  if (diaperPatterns.some(pattern => lowerText.includes(pattern.toLowerCase()))) {
+
+  // DIAPER
+  if (DIAPER_PATTERNS.some(p => lowerText.includes(p.toLowerCase()))) {
     activities.push({ type: 'diaper', confidence: 'high' });
   }
-  
+
   return activities;
 }
 
-/**
- * Load logs from storage
- */
+// ============================================================
+// DETECTION PATTERNS — Action statements only
+// These patterns indicate the user DID something (past tense, active)
+// NOT questions, NOT future tense, NOT third-party references
+// ============================================================
+
+const FOOD_PATTERNS = [
+  // Compound food phrases
+  'দাল ভাত খাওয়াইছি', 'দাল ভাত খাইয়েছি', 'দাল ভাত খাওয়ালাম',
+  'দাল ভাত দিয়েছি', 'দাল ভাত দিলাম',
+  'খিচুড়ি খাইয়েছি', 'খিচুড়ি খাওয়ালাম', 'খিচুড়ি দিয়েছি', 'খিচুড়ি দিলাম',
+  'ভাত খাওয়াইছি', 'ভাত খাওয়ালাম', 'ভাত খাইয়েছি', 'ভাত দিয়েছি', 'ভাত দিলাম',
+  'ডিম খাওয়ালাম', 'ডিম খাইয়েছি', 'ডিম দিয়েছি', 'ডিম দিলাম',
+  'কলা খাওয়ালাম', 'কলা খাইয়েছি', 'কলা দিয়েছি', 'কলা দিলাম',
+  'সবজি খাওয়ালাম', 'সবজি খাইয়েছি', 'সবজি দিয়েছি',
+  'মাছ খাওয়ালাম', 'মাছ দিয়েছি',
+  'মুরগি খাওয়ালাম', 'মুরগি দিয়েছি',
+  // General food
+  'খাবার খাওয়াইছি', 'খাবার খাইয়েছি', 'খাবার খাওয়ালাম', 'খাবার দিয়েছি', 'খাবার দিলাম',
+  'সলিড খাওয়ালাম', 'সলিড দিয়েছি',
+  'ফল দিয়েছি', 'ফল খাওয়ালাম'
+];
+
+const FEED_PATTERNS = [
+  // Active feeding statements (past tense — "I fed")
+  'দুধ খাওয়ালাম', 'দুধ খাওয়াইলাম', 'দুধ খাইয়েছি', 'দুধ খাওয়াইছি',
+  'দুধ দিয়েছি', 'দুধ দিলাম', 'দুধ দিছি',
+  'ফিড করেছি', 'ফিড দিয়েছি', 'ফিড দিলাম',
+  'ব্রেস্টফিড', 'স্তন্যপান করালাম', 'স্তন্যপান করাইলাম',
+  'বুকের দুধ দিয়েছি', 'বুকের দুধ দিলাম',
+  'ফর্মুলা দিয়েছি', 'ফর্মুলা দিলাম',
+  'বোতলে দুধ দিলাম', 'বোতল দিয়েছি', 'বোতল দিলাম',
+  // "Just fed" patterns
+  'এইমাত্র দুধ', 'এইমাত্রই দুধ', 'এখনই দুধ'
+];
+
+const SLEEP_PATTERNS = [
+  // Active sleep statements ("baby is sleeping" / "I put baby to sleep")
+  'ঘুমাচ্ছে', 'ঘুমিয়েছে', 'ঘুমাইছে', 'ঘুমিয়ে গেছে',
+  'ঘুমায় গেছে', 'ঘুমাইয়া গেছে',
+  'ঘুম দিয়েছি', 'ঘুম দিলাম',
+  'শুইয়ে দিয়েছি', 'শুইয়ে দিলাম',
+  'ঘুমাতে দিয়েছি', 'ঘুমাইয়ে দিয়েছি',
+  'ঘুমিয়ে পড়েছে', 'ঘুমায় পড়ছে'
+];
+
+const DIAPER_PATTERNS = [
+  // Active diaper change statements
+  'ডায়াপার বদলালাম', 'ডায়াপার বদলাইলাম', 'ডায়াপার বদলেছি', 'ডায়াপার বদলাইছি',
+  'ডায়াপার চেঞ্জ করলাম', 'ডায়াপার চেঞ্জ করেছি',
+  'পায়খানা করেছে', 'পায়খানা হয়েছে',
+  'প্রস্রাব করেছে', 'প্রস্রাব হয়েছে',
+  'পটি করেছে', 'পটি হয়েছে',
+  'সু সু করেছে', 'পু পু করেছে',
+  'ডায়াপার ভিজে গেছে', 'ডায়াপার নোংরা'
+];
+
+// ============================================================
+// HELPERS
+// ============================================================
+
 async function loadLogs(babyId) {
   try {
     const saved = await AsyncStorage.getItem(`daily_logs_${babyId}`);
     if (saved) {
       const parsed = JSON.parse(saved);
-      
-      // Ensure all activity types exist
       return {
         feed: parsed.feed || [],
         sleep: parsed.sleep || [],
@@ -265,14 +232,7 @@ async function loadLogs(babyId) {
   } catch (error) {
     console.error('Error loading logs:', error);
   }
-  
-  // Return empty structure if nothing saved
-  return {
-    feed: [],
-    sleep: [],
-    diaper: [],
-    food: []
-  };
+  return { feed: [], sleep: [], diaper: [], food: [] };
 }
 
 /**
@@ -293,10 +253,6 @@ export function getActivityNameBengali(type) {
  */
 export function formatAutoLogConfirmation(activities) {
   if (!activities || activities.length === 0) return '';
-  
-  const activityNames = activities
-    .map(a => getActivityNameBengali(a.type))
-    .join(', ');
-  
+  const activityNames = activities.map(a => getActivityNameBengali(a.type)).join(', ');
   return `✓ ${activityNames} লগ করে রাখলাম`;
 }
