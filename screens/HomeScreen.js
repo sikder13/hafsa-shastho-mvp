@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from 'react';
+// screens/HomeScreen.js
+// Home tab dashboard — combined mother + baby overview
+// Navigation is now handled by bottom tabs, not cards
+
+import React from 'react';
 import {
   View,
   Text,
@@ -9,74 +13,40 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import { useNavigation } from '@react-navigation/native';
 import { toBengaliNumber, calculateAge, getGreeting, countToday, getRecoveryStage } from '../utils/helpers';
-import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
+import { COLORS, TEXT } from '../utils/constants';
 
-export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, onNavigateDailyLog, onReset, onNavigateChat, onNavigateMotherCheckin }) {
-  const { motherProfile, todayMotherLog } = useApp();
-  const [logs, setLogs] = useState({
-    feed: [],
-    sleep: [],
-    diaper: [],
-    food: []
-  });
+export default function HomeScreen() {
+  const {
+    baby,
+    motherProfile,
+    logs,
+    todayMotherLog,
+    resetAllData
+  } = useApp();
 
-  useEffect(() => {
-    loadLogs();
-  }, [baby.id]);
-
-  const loadLogs = async () => {
-    try {
-      const savedLogs = await AsyncStorage.getItem(STORAGE_KEYS.dailyLogs(baby.id));
-      if (savedLogs) {
-        setLogs(JSON.parse(savedLogs));
-      }
-    } catch (error) {
-      console.error('Error loading logs:', error);
-    }
-  };
-
-  const getTodayCount = (type) => {
-    return countToday(logs[type]);
-  };
+  const navigation = useNavigation();
 
   const ageInfo = calculateAge(baby.birth_date);
+
+  const todayFeed = countToday(logs.feed);
+  const todaySleep = countToday(logs.sleep);
+  const todayDiaper = countToday(logs.diaper);
 
   const handleResetApp = () => {
     Alert.alert(
       '⚠️ রিসেট করুন',
-      'সব ডেটা মুছে ফেলা হবে এবং অ্যাপ নতুন করে শুরু হবে।\n\nএটি শুধুমাত্র টেস্টিং এর জন্য।\n\nনিশ্চিত?',
+      'সব ডেটা মুছে যাবে। শুধু টেস্টিং এর জন্য।',
       [
-        { 
-          text: 'না', 
-          style: 'cancel' 
-        },
+        { text: 'না', style: 'cancel' },
         {
-          text: 'হ্যাঁ, রিসেট করুন',
+          text: 'হ্যাঁ, রিসেট',
           style: 'destructive',
           onPress: async () => {
             try {
-              const allKeys = await AsyncStorage.getAllKeys();
-              if (allKeys.length > 0) {
-                await AsyncStorage.multiRemove(allKeys);
-              }
-              
-              Alert.alert(
-                '✅ সম্পন্ন',
-                'সব ডেটা মুছে ফেলা হয়েছে।',
-                [
-                  {
-                    text: 'ঠিক আছে',
-                    onPress: () => {
-                      if (onReset) {
-                        onReset();
-                      }
-                    }
-                  }
-                ]
-              );
+              await resetAllData();
             } catch (error) {
-              Alert.alert('ত্রুটি', 'ডেটা মুছতে সমস্যা হয়েছে');
               console.error('Reset error:', error);
             }
           }
@@ -87,42 +57,31 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
-      
-      {/* DEVELOPMENT RESET BUTTON */}
-      <View style={{
-        position: 'absolute',
-        top: 50,
-        right: 20,
-        zIndex: 999
-      }}>
+
+      {/* DEV RESET */}
+      <View style={{ position: 'absolute', top: 50, right: 20, zIndex: 999 }}>
         <TouchableOpacity
           onPress={handleResetApp}
           style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
+            width: 40, height: 40, borderRadius: 20,
             backgroundColor: COLORS.danger,
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 4,
-            elevation: 5
+            justifyContent: 'center', alignItems: 'center',
+            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.2, shadowRadius: 3, elevation: 4
           }}
         >
-          <Text style={{ fontSize: 20 }}>🔄</Text>
+          <Text style={{ fontSize: 18 }}>🔄</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 60 }}>
-        
-        {/* HAFSA AAPA GREETING CARD */}
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 40 }}>
+
+        {/* GREETING */}
         <View style={{
           backgroundColor: COLORS.primaryLight,
           padding: 24,
           borderRadius: 16,
-          marginBottom: 24,
+          marginBottom: 20,
           borderLeftWidth: 6,
           borderLeftColor: COLORS.primary
         }}>
@@ -132,31 +91,23 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               হাফসা আপা বলছে
             </Text>
           </View>
-          
+
           <Text style={{ fontSize: 18, color: COLORS.primaryDarker, marginBottom: 12, lineHeight: 26 }}>
-            {getGreeting()}! আসসালামু আলাইকুম!
+            {getGreeting()}! আসসালামু আলাইকুম{motherProfile?.name ? ` ${motherProfile.name}` : ''}!
           </Text>
-          
-          <Text style={{ fontSize: 17, color: COLORS.primaryDark, marginBottom: 16, lineHeight: 24 }}>
+
+          <Text style={{ fontSize: 17, color: COLORS.primaryDark, marginBottom: 12, lineHeight: 24 }}>
             আজ {baby.name} এর {ageInfo.bengaliAge} হলো! 🎉
           </Text>
-          
-          <Text style={{ fontSize: 15, color: '#388E3C', lineHeight: 22 }}>
-            এই বয়সে শিশুরা হাসতে শুরু করে। {baby.name} এর সাথে বেশি কথা বলুন এবং চোখে চোখ রেখে কথা বলুন! 💬
-          </Text>
-          
+
           <TouchableOpacity
-            onPress={() => {
-              if (onNavigateChat) {
-                onNavigateChat();
-              }
-            }}
+            onPress={() => navigation.navigate('HafsaTab')}
             style={{
-              marginTop: 16,
               backgroundColor: COLORS.primary,
               padding: 14,
               borderRadius: 10,
-              alignItems: 'center'
+              alignItems: 'center',
+              marginTop: 4
             }}
           >
             <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
@@ -165,15 +116,15 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           </TouchableOpacity>
         </View>
 
-        {/* MOTHER CHECK-IN CARD — Shows status if checked in, or prompt if not */}
+        {/* MOTHER STATUS CARD */}
         <TouchableOpacity
-          onPress={onNavigateMotherCheckin}
+          onPress={() => navigation.navigate('MotherTab')}
           activeOpacity={0.8}
           style={{
             backgroundColor: '#FFF0F3',
             borderRadius: 16,
             padding: 20,
-            marginBottom: 24,
+            marginBottom: 20,
             borderLeftWidth: 6,
             borderLeftColor: COLORS.mother,
             shadowColor: '#000',
@@ -184,7 +135,6 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           }}
         >
           {todayMotherLog ? (
-            // CHECKED IN — Show today's summary
             <View>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -196,104 +146,40 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
                 <Text style={{ fontSize: 13, color: '#AD1457' }}>আপডেট →</Text>
               </View>
 
-              {/* Status row */}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {/* Mood */}
                 {todayMotherLog.mood && (
-                  <View style={{
-                    backgroundColor: 'white',
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}>
-                    <Text style={{ fontSize: 16, marginRight: 6 }}>
-                      {TEXT.moodEmojis[todayMotherLog.mood] || '😐'}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
-                      {TEXT.moods[todayMotherLog.mood] || todayMotherLog.mood}
-                    </Text>
+                  <View style={{ backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 16, marginRight: 6 }}>{TEXT.moodEmojis[todayMotherLog.mood] || '😐'}</Text>
+                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>{TEXT.moods[todayMotherLog.mood]}</Text>
                   </View>
                 )}
-
-                {/* Sleep */}
                 {todayMotherLog.sleepHours && (
-                  <View style={{
-                    backgroundColor: 'white',
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}>
+                  <View style={{ backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={{ fontSize: 16, marginRight: 6 }}>😴</Text>
                     <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
-                      {todayMotherLog.sleepHours === '1-2' ? '১-২ ঘন্টা' :
-                       todayMotherLog.sleepHours === '3-4' ? '৩-৪ ঘন্টা' :
-                       todayMotherLog.sleepHours === '5-6' ? '৫-৬ ঘন্টা' : '৭+ ঘন্টা'}
+                      {todayMotherLog.sleepHours === '1-2' ? '১-২ ঘন্টা' : todayMotherLog.sleepHours === '3-4' ? '৩-৪ ঘন্টা' : todayMotherLog.sleepHours === '5-6' ? '৫-৬ ঘন্টা' : '৭+ ঘন্টা'}
                     </Text>
                   </View>
                 )}
-
-                {/* Water */}
                 {todayMotherLog.waterIntake > 0 && (
-                  <View style={{
-                    backgroundColor: 'white',
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}>
+                  <View style={{ backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
                     <Text style={{ fontSize: 16, marginRight: 6 }}>💧</Text>
-                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
-                      {toBengaliNumber(todayMotherLog.waterIntake)}/৮
-                    </Text>
-                  </View>
-                )}
-
-                {/* Breastfeeding */}
-                {todayMotherLog.breastfeedingSessions > 0 && (
-                  <View style={{
-                    backgroundColor: 'white',
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}>
-                    <Text style={{ fontSize: 16, marginRight: 6 }}>🤱</Text>
-                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>
-                      {toBengaliNumber(todayMotherLog.breastfeedingSessions)} বার
-                    </Text>
+                    <Text style={{ fontSize: 13, color: COLORS.dark, fontWeight: '600' }}>{toBengaliNumber(todayMotherLog.waterIntake)}/৮</Text>
                   </View>
                 )}
               </View>
 
-              {/* Recovery progress */}
               {motherProfile && (
                 <View style={{ marginTop: 12 }}>
                   {(() => {
-                    const ageInfo = calculateAge(baby.birth_date);
                     const recovery = getRecoveryStage(
                       ageInfo.ageDays,
                       motherProfile.delivery_type === 'csection' ? 'csection' : 'normal'
                     );
                     return (
                       <View>
-                        <View style={{
-                          height: 6,
-                          backgroundColor: '#F8BBD0',
-                          borderRadius: 3,
-                          overflow: 'hidden'
-                        }}>
-                          <View style={{
-                            height: '100%',
-                            width: `${recovery.percentComplete}%`,
-                            backgroundColor: COLORS.mother,
-                            borderRadius: 3
-                          }} />
+                        <View style={{ height: 6, backgroundColor: '#F8BBD0', borderRadius: 3, overflow: 'hidden' }}>
+                          <View style={{ height: '100%', width: `${recovery.percentComplete}%`, backgroundColor: COLORS.mother, borderRadius: 3 }} />
                         </View>
                         <Text style={{ fontSize: 12, color: '#AD1457', marginTop: 4 }}>
                           সুস্থতা {toBengaliNumber(recovery.percentComplete)}% • {recovery.description}
@@ -305,7 +191,6 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
               )}
             </View>
           ) : (
-            // NOT CHECKED IN — Show prompt
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={{ fontSize: 36, marginRight: 14 }}>🤱</Text>
               <View style={{ flex: 1 }}>
@@ -321,140 +206,58 @@ export default function HomeScreen({ baby, onNavigateVaccine, onNavigateGrowth, 
           )}
         </TouchableOpacity>
 
-        {/* FEATURES SECTION HEADER */}
-        <Text style={{ fontSize: 22, fontWeight: 'bold', marginBottom: 20, color: COLORS.dark }}>
-          📋 শিশুর ফিচার
-        </Text>
-
-        {/* FEATURE GRID */}
-        <View style={{ gap: 16 }}>
-          
-          {/* ROW 1: Daily Log + Vaccine */}
-          <View style={{ flexDirection: 'row', gap: 16 }}>
-            
-            {/* DAILY LOG CARD */}
-            <TouchableOpacity
-              onPress={onNavigateDailyLog}
-              style={{
-                flex: 1,
-                backgroundColor: COLORS.cardBg,
-                borderRadius: 16,
-                padding: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 3
-              }}
-            >
-              <Text style={{ fontSize: 40, marginBottom: 8 }}>📊</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
-                দৈনিক লগ
+        {/* BABY QUICK SUMMARY */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('BabyTab')}
+          activeOpacity={0.8}
+          style={{
+            backgroundColor: COLORS.primaryLight,
+            borderRadius: 16,
+            padding: 20,
+            marginBottom: 20,
+            borderLeftWidth: 6,
+            borderLeftColor: COLORS.primary,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            elevation: 3
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 24, marginRight: 10 }}>👶</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark }}>
+                {baby.name} এর আজকের দিন
               </Text>
-              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 12 }}>
-                আজ:
-              </Text>
-              <Text style={{ fontSize: 13, color: COLORS.feed }}>
-                🍼 {toBengaliNumber(getTodayCount('feed'))} বার
-              </Text>
-              <Text style={{ fontSize: 13, color: COLORS.sleep }}>
-                😴 {toBengaliNumber(getTodayCount('sleep'))} বার
-              </Text>
-            </TouchableOpacity>
-
-            {/* VACCINE CARD */}
-            <TouchableOpacity
-              onPress={onNavigateVaccine}
-              style={{
-                flex: 1,
-                backgroundColor: COLORS.cardBg,
-                borderRadius: 16,
-                padding: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 3
-              }}
-            >
-              <Text style={{ fontSize: 40, marginBottom: 8 }}>💉</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
-                টিকা ট্র্যাকার
-              </Text>
-              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 8 }}>
-                EPI সূচি
-              </Text>
-              <Text style={{ fontSize: 13, color: COLORS.vaccine, fontWeight: 'bold' }}>
-                দেখুন →
-              </Text>
-            </TouchableOpacity>
-
+            </View>
+            <Text style={{ fontSize: 13, color: COLORS.primary }}>বিস্তারিত →</Text>
           </View>
 
-          {/* ROW 2: Growth + AI Help */}
-          <View style={{ flexDirection: 'row', gap: 16 }}>
-            
-            {/* GROWTH CARD */}
-            <TouchableOpacity
-              onPress={onNavigateGrowth}
-              style={{
-                flex: 1,
-                backgroundColor: COLORS.cardBg,
-                borderRadius: 16,
-                padding: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 3
-              }}
-            >
-              <Text style={{ fontSize: 40, marginBottom: 8 }}>📈</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
-                বৃদ্ধি চার্ট
+          <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 24 }}>🍼</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.feed, marginTop: 4 }}>
+                {toBengaliNumber(todayFeed)}
               </Text>
-              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 8 }}>
-                ওজন ও উচ্চতা
+              <Text style={{ fontSize: 11, color: COLORS.gray }}>দুধ</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 24 }}>😴</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.sleep, marginTop: 4 }}>
+                {toBengaliNumber(todaySleep)}
               </Text>
-              <Text style={{ fontSize: 13, color: COLORS.growth, fontWeight: 'bold' }}>
-                দেখুন →
+              <Text style={{ fontSize: 11, color: COLORS.gray }}>ঘুম</Text>
+            </View>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 24 }}>💩</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.diaper, marginTop: 4 }}>
+                {toBengaliNumber(todayDiaper)}
               </Text>
-            </TouchableOpacity>
-
-            {/* AI HELP CARD */}
-            <TouchableOpacity
-              onPress={() => {
-                if (onNavigateChat) {
-                  onNavigateChat();
-                }
-              }}
-              style={{
-                flex: 1,
-                backgroundColor: COLORS.cardBg,
-                borderRadius: 16,
-                padding: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 3
-              }}
-            >
-              <Text style={{ fontSize: 40, marginBottom: 8 }}>💚</Text>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 8 }}>
-                হাফসা আপা
-              </Text>
-              <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 8 }}>
-                AI সহায়ক
-              </Text>
-              <Text style={{ fontSize: 13, color: COLORS.primary, fontWeight: 'bold' }}>
-                কথা বলুন →
-              </Text>
-            </TouchableOpacity>
-
+              <Text style={{ fontSize: 11, color: COLORS.gray }}>ডায়াপার</Text>
+            </View>
           </View>
-
-        </View>
+        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>

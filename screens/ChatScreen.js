@@ -236,15 +236,17 @@ export default function ChatScreen({ baby, onBack }) {
         borderBottomWidth: 1,
         borderBottomColor: COLORS.primaryBorder
       }}>
-        <TouchableOpacity
-          onPress={() => {
-            if (abortRef.current) abortRef.current();
-            onBack();
-          }}
-          style={{ marginRight: 12, padding: 4 }}
-        >
-          <Text style={{ fontSize: 24 }}>←</Text>
-        </TouchableOpacity>
+        {onBack && (
+          <TouchableOpacity
+            onPress={() => {
+              if (abortRef.current) abortRef.current();
+              onBack();
+            }}
+            style={{ marginRight: 12, padding: 4 }}
+          >
+            <Text style={{ fontSize: 24 }}>←</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
