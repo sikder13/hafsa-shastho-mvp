@@ -90,7 +90,7 @@ export const COLORS = {
     // AI Chat
     maxChatHistory: 10,        // Messages sent to Claude API
     maxStoredMessages: 50,     // Messages stored locally
-    maxResponseTokens: 512,    // Claude max_tokens
+    maxResponseTokens: 800,    // Claude max_tokens
     systemPromptBudget: 600,   // Target system prompt size in tokens
     chatResponseTimeout: 15000, // 15 second timeout for API calls
   
