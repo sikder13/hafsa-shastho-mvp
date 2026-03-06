@@ -103,6 +103,30 @@ function buildBabySection(baby, logs) {
   const breastCount = todayFeedDetails.filter(l => l.details?.feedType === 'breast').length;
   const bottleCount = todayFeedDetails.filter(l => l.details?.feedType === 'bottle' || l.details?.feedType === 'formula').length;
 
+  // Yesterday's counts for comparison
+  const yesterday = {
+    feed: countForDate(logs.feed, -1),
+    sleep: countForDate(logs.sleep, -1),
+    diaper: countForDate(logs.diaper, -1),
+    food: countForDate(logs.food, -1)
+  };
+
+  // 5-day average
+  const feedLast5 = getLast7DaysCount(logs.feed).slice(0, 5);
+  const sleepLast5 = getLast7DaysCount(logs.sleep).slice(0, 5);
+  const fiveDayAvgFeed = feedLast5.length > 0 ? Math.round(feedLast5.reduce((a, b) => a + b, 0) / feedLast5.length) : 0;
+  const fiveDayAvgSleep = sleepLast5.length > 0 ? Math.round(sleepLast5.reduce((a, b) => a + b, 0) / sleepLast5.length) : 0;
+
+  // Feed trend (last 5 days)
+  const feedTrendData = getLast7DaysCount(logs.feed).slice(0, 5);
+  let feedTrend = 'stable';
+  if (feedTrendData.length >= 3) {
+    const recent = feedTrendData.slice(0, 2).reduce((a, b) => a + b, 0) / 2;
+    const older = feedTrendData.slice(2).reduce((a, b) => a + b, 0) / (feedTrendData.length - 2);
+    if (recent < older - 1) feedTrend = 'decreasing';
+    else if (recent > older + 1) feedTrend = 'increasing';
+  }
+
   return {
     name: baby.name,
     gender: baby.gender,
@@ -113,6 +137,10 @@ function buildBabySection(baby, logs) {
     ageWeeks: Math.floor(ageInfo.ageDays / 7),
 
     today,
+    yesterday,
+    fiveDayAvgFeed,
+    fiveDayAvgSleep,
+    feedTrend,
     lastFeedMinutesAgo: lastFeed ? minutesAgo(lastFeed) : null,
     lastSleepMinutesAgo: lastSleep ? minutesAgo(lastSleep) : null,
     breastCountToday: breastCount,
@@ -589,6 +617,14 @@ function getTodayEntries(logArray) {
 
 function minutesAgo(timestamp) {
   return Math.floor((Date.now() - new Date(timestamp).getTime()) / (1000 * 60));
+}
+
+function countForDate(logArray, daysOffset) {
+  if (!logArray) return 0;
+  const date = new Date();
+  date.setDate(date.getDate() + daysOffset);
+  const dateStr = date.toDateString();
+  return logArray.filter(l => new Date(l.timestamp).toDateString() === dateStr).length;
 }
 
 function getLast7DaysCount(logArray) {

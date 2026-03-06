@@ -19,6 +19,7 @@ import { buildHafsaPrompt, buildOpeningMessage, detectEmergency } from '../servi
 import { buildFullContext } from '../utils/contextBuilder';
 import { processAutoLog, formatAutoLogConfirmation } from '../services/autoLogger';
 import { useApp } from '../context/AppContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
 
@@ -66,6 +67,21 @@ export default function ChatScreen({ baby, onBack }) {
       setSuggestedQuestions(context.suggestedQuestions);
     }
 
+    // Load saved conversation (if from today)
+    try {
+      const saved = await AsyncStorage.getItem('chat_messages');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.date === new Date().toDateString() && parsed.messages?.length > 0) {
+          setMessages(parsed.messages);
+          return; // Don't show opening message — conversation exists
+        }
+      }
+    } catch (e) {
+      console.log('No saved chat to load');
+    }
+
+    // No saved conversation — show fresh opening message
     const openingText = buildOpeningMessage(context);
 
     setMessages([{
@@ -165,6 +181,8 @@ export default function ChatScreen({ baby, onBack }) {
             };
 
             setMessages(prev => [...prev, hafsaMsg]);
+            // Save conversation to AsyncStorage
+            saveConversation([...messages, newUserMsg, hafsaMsg]);
             setStreamingText('');
             setLoading(false);
             scrollToBottom();
@@ -212,6 +230,7 @@ export default function ChatScreen({ baby, onBack }) {
         };
 
         setMessages(prev => [...prev, hafsaMsg]);
+        saveConversation([...messages, hafsaMsg]);
         scrollToBottom();
       } else {
         Alert.alert('ত্রুটি', result.message);
@@ -223,7 +242,16 @@ export default function ChatScreen({ baby, onBack }) {
       setStreamingText('');
     }
   };
-
+  const saveConversation = async (msgs) => {
+    try {
+      await AsyncStorage.setItem('chat_messages', JSON.stringify({
+        date: new Date().toDateString(),
+        messages: msgs.slice(-30)
+      }));
+    } catch (e) {
+      console.log('Error saving chat:', e);
+    }
+  };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
 

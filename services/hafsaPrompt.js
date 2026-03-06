@@ -222,9 +222,15 @@ function buildIntelligenceRules(baby, mother, patterns) {
 - মা একা সামলাচ্ছে + ঘুম কম + মন খারাপ → গুরুতর — সাহায্য চাইতে বলো
 
 ## ডেটা-ভিত্তিক উত্তর (জেনেরিক উত্তর দিও না):
-- "শিশু কি যথেষ্ট খাচ্ছে?" → "${babyName} আজ ${baby ? toBengaliNumber(baby.today.feed) : '?'} বার খেয়েছে, এই বয়সে ${baby?.expectedFeeds || '?'} স্বাভাবিক"
-- "দুধ কম হচ্ছে" → "আপনার লগ দেখছি — ${babyName} দিনে গড়ে X বার খাচ্ছে, এটা [ভালো/কম]"
-- "ওজন কি ঠিক আছে?" → সর্বশেষ ওজন এবং বৃদ্ধির হার উল্লেখ করো
+- "শিশু কি যথেষ্ট খাচ্ছে?" → "${babyName} আজ ${baby ? toBengaliNumber(baby.today.feed) : '?'} বার খেয়েছে${baby?.yesterday?.feed ? ', গতকাল ' + toBengaliNumber(baby.yesterday.feed) + ' বার ছিল' : ''}। এই বয়সে ${baby?.expectedFeeds || '?'} স্বাভাবিক"
+- "দুধ কম হচ্ছে" → "আপনার লগ দেখছি — ${babyName} গড়ে ${baby?.fiveDayAvgFeed ? toBengaliNumber(baby.fiveDayAvgFeed) : '?'} বার/দিন খাচ্ছে${baby?.feedTrend === 'decreasing' ? ' এবং কমে যাচ্ছে ⚠' : ''}"
+- সবসময় গতকাল ও আজকের তুলনা করো — "গতকাল X বার, আজ Y বার"
+- সবসময় নির্দিষ্ট সংখ্যা বলো — "ভালো খাচ্ছে" না বলে "আজ ৫ বার, যা এই বয়সে স্বাভাবিক" বলো
+
+## আবেগ বোঝার নিয়ম (Emotional Intelligence):
+- ইউজার "ঠিক আছে" বা "কিছু না" বলে কিন্তু চেক-ইনে মন "খারাপ" বা "বিষন্ন" → গভীরভাবে জিজ্ঞেস করো: "আপনি বলছেন ঠিক আছে, কিন্তু আমি দেখছি কয়েকদিন ধরে মন ভালো নেই। সত্যি করে বলুন 💚"
+- ইউজার "সাহায্য লাগবে না" বলে কিন্তু ডেটা দেখায় একা সামলাচ্ছে দিনের পর দিন → "ঠিক আছে! তবে মনে রাখবেন সাহায্য চাওয়া দুর্বলতা নয় 💚" — শুধু ১ বাক্য
+- ইউজার হাসি বা ভালো কথা বলে কিন্তু ঘুম ১-২ ঘন্টা → "ভালো শুনে খুশি হলাম! তবে ঘুম খুব কম হচ্ছে — এটা নিজের যত্ন নেওয়ার অংশ"
 
 ## প্রোঅ্যাক্টিভ আচরণ (সুযোগ পেলে করো, জোর করে নয়):
 - শিশু সম্পর্কে কথা হলে মায়ের খোঁজ নাও: "আপনি নিজে কেমন আছেন?"
@@ -355,33 +361,97 @@ function buildOrchestrationRules(baby, mother, vaccine, growth) {
 // ============================================================
 
 export function buildOpeningMessage(context = {}) {
-  const { baby, mother, vaccine } = context;
+  const { baby, mother, vaccine, growth } = context;
   if (!baby) return 'আসসালামু আলাইকুম! আমি হাফসা আপা। কিভাবে সাহায্য করতে পারি? 💚';
 
   const motherName = mother?.name || '';
   const greeting = getTimeGreeting();
-  const parts = [];
+  const lines = [];
 
-  parts.push(motherName ? `${greeting} ${motherName}!` : `${greeting}!`);
+  // Personal greeting
+  lines.push(motherName ? `${greeting} ${motherName}!` : `${greeting}!`);
 
-  // Pick ONE most relevant context message
+  // === DAILY BRIEFING ===
+
+  // Urgent items first
   if (mother?.flags?.includes('self_harm_concern')) {
-    parts.push('আপনি কেমন আছেন আজ? কথা বলতে চাইলে আমি শুনছি। 💚');
-  } else if (vaccine?.upcoming?.length > 0 && vaccine.upcoming[0].daysUntil <= 2) {
-    parts.push(`${baby.name} এর ${vaccine.upcoming[0].name} টিকার সময় এসেছে! প্রস্তুতি নিয়ে জানতে চাইলে বলুন।`);
-  } else if (vaccine?.hasPostVaccineCare) {
-    parts.push(`${baby.name} সম্প্রতি ${vaccine.recentlyCompleted[0].name} টিকা নিয়েছে। কোনো সমস্যা হলে জানান।`);
-  } else if (mother?.today?.mood === 'sad' || mother?.today?.mood === 'bad') {
-    parts.push('আজ আপনার মন ভালো নেই দেখলাম। কিছু বলতে চাইলে শুনছি। 💚');
-  } else if (mother?.sleepPattern?.avgHours !== null && mother.sleepPattern.avgHours < 3) {
-    parts.push('আপনার ঘুম খুব কম হচ্ছে। এটা নিয়ে কথা বলতে চাইলে বলুন।');
-  } else if (baby.lastFeedMinutesAgo && baby.lastFeedMinutesAgo > 300) {
-    parts.push(`${baby.name} এর শেষ দুধ ${toBengaliNumber(Math.round(baby.lastFeedMinutesAgo / 60))} ঘন্টা আগে। সব ঠিক?`);
-  } else {
-    parts.push(`${baby.name} আর আপনাকে নিয়ে যেকোনো প্রশ্ন করুন। 💚`);
+    lines.push('আপনি কেমন আছেন আজ? আপনার কথা শুনতে চাই। 💚');
+    return lines.join(' ');
   }
 
-  return parts.join(' ');
+  lines.push('আজকের আপডেট:');
+
+  // Baby summary with comparison
+  const todayFeed = baby.today?.feed || 0;
+  const yesterdayFeed = baby.yesterday?.feed;
+  if (todayFeed > 0) {
+    let feedLine = `• ${baby.name} আজ ${toBengaliNumber(todayFeed)} বার দুধ খেয়েছে`;
+    if (yesterdayFeed !== undefined && yesterdayFeed > 0) {
+      if (todayFeed < yesterdayFeed - 2) {
+        feedLine += ` (গতকাল ${toBengaliNumber(yesterdayFeed)} বার — আজ কম ⚠)`;
+      } else if (todayFeed > yesterdayFeed + 2) {
+        feedLine += ` (গতকালের চেয়ে বেশি ✅)`;
+      }
+    }
+    lines.push(feedLine);
+  }
+
+  if (baby.feedTrend === 'decreasing') {
+    lines.push(`• ⚠ গত কয়েকদিনে ${baby.name} এর খাওয়া কমে যাচ্ছে`);
+  }
+
+  // Last feed timing alert
+  if (baby.lastFeedMinutesAgo && baby.lastFeedMinutesAgo > 240 && baby.ageMonths < 6) {
+    lines.push(`• ${toBengaliNumber(Math.round(baby.lastFeedMinutesAgo / 60))} ঘন্টা দুধ খাওয়ানো হয়নি`);
+  }
+
+  // Vaccine
+  if (vaccine?.upcoming?.length > 0 && vaccine.upcoming[0].daysUntil <= 3) {
+    lines.push(`• ${vaccine.upcoming[0].name} টিকা ${vaccine.upcoming[0].daysUntil === 0 ? 'আজ!' : toBengaliNumber(vaccine.upcoming[0].daysUntil) + ' দিনে'}`);
+  }
+  if (vaccine?.overdue?.length > 0) {
+    lines.push(`• ⚠ ${vaccine.overdue[0].name} টিকা মিস হয়ে গেছে`);
+  }
+  if (vaccine?.hasPostVaccineCare) {
+    lines.push(`• ${vaccine.recentlyCompleted[0].name} টিকার পর — কোনো সমস্যা হলে জানান`);
+  }
+
+  // Mother status
+  if (mother) {
+    if (mother.today?.checkedIn) {
+      if (mother.today.mood === 'sad' || mother.today.mood === 'bad') {
+        lines.push(`• আপনার মন ভালো নেই দেখলাম — কথা বলতে চাইলে শুনছি 💚`);
+      }
+      if (mother.today.sleepHours === '1-2') {
+        lines.push(`• মাত্র ১-২ ঘন্টা ঘুম — আজ বিশ্রাম নেওয়ার চেষ্টা করুন`);
+      }
+      if (mother.today.waterIntake !== undefined && mother.today.waterIntake < 3) {
+        lines.push(`• পানি ${toBengaliNumber(mother.today.waterIntake)}/৮ — আরো পানি খান`);
+      }
+    } else {
+      lines.push(`• আজ চেক-ইন করেননি — মা ট্যাবে গিয়ে জানান কেমন আছেন`);
+    }
+
+    if (mother.moodPattern?.consecutiveSadDays >= 3) {
+      lines.push(`• ⚠ ${toBengaliNumber(mother.moodPattern.consecutiveSadDays)} দিন ধরে মন ভালো নেই — কারো সাথে কথা বলুন`);
+    }
+  }
+
+  // Growth alert
+  if (growth?.hasMeasurements && growth.isGoodVelocity === false) {
+    lines.push(`• ওজন বৃদ্ধি কম — পরবর্তী ডাক্তার ভিজিটে জানান`);
+  }
+
+  // Closing — only if briefing has items
+  if (lines.length > 2) {
+    lines.push('');
+    lines.push('কিছু জানতে চাইলে জিজ্ঞেস করুন! 💚');
+  } else {
+    // No notable items — simple greeting
+    return `${lines[0]} ${baby.name} আর আপনাকে নিয়ে যেকোনো প্রশ্ন করুন। 💚`;
+  }
+
+  return lines.join('\n');
 }
 
 // ============================================================

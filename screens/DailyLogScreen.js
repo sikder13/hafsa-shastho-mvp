@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toBengaliNumber, calculateAgeInMonths, countToday, formatTimeBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
+import { useApp } from '../context/AppContext';
 
 export default function DailyLogScreen({ baby, onBack }) {
   const [logs, setLogs] = useState({
@@ -60,9 +61,12 @@ export default function DailyLogScreen({ baby, onBack }) {
     }
   };
 
+  const { setLogs: setGlobalLogs } = useApp();
+
   const saveLogs = async (newLogs) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.dailyLogs(baby.id), JSON.stringify(newLogs));
+      setGlobalLogs(newLogs); // Sync to AppContext so HomeScreen and Hafsa see it
     } catch (error) {
       console.error('Error saving logs:', error);
     }
