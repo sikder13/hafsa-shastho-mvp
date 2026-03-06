@@ -44,6 +44,8 @@ export default function GrowthScreen({ baby, onBack }) {
     }
   };
 
+  
+
   const saveMeasurements = async (newMeasurements) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.growthMeasurements(baby.id), JSON.stringify(newMeasurements));
@@ -163,7 +165,7 @@ export default function GrowthScreen({ baby, onBack }) {
         
         {last5.map((m, i) => {
           const barHeight = ((m.weight - minWeight) / range) * 100;
-          const percentile = calculatePercentile(m.ageMonths, m.weight);
+          const percentile = calculatePercentile(m.ageMonths, m.weight, baby.gender)
           
           return (
             <View key={m.id} style={{ marginBottom: 16 }}>
@@ -225,7 +227,7 @@ export default function GrowthScreen({ baby, onBack }) {
 
   const currentMeasurement = measurements[0];
   const percentileData = currentMeasurement ? 
-    calculatePercentile(currentMeasurement.ageMonths, currentMeasurement.weight) : null;
+  calculatePercentile(currentMeasurement.ageMonths, currentMeasurement.weight, baby.gender) : null;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
@@ -517,7 +519,7 @@ export default function GrowthScreen({ baby, onBack }) {
           </View>
         ) : (
           measurements.map((measurement) => {
-            const data = calculatePercentile(measurement.ageMonths, measurement.weight);
+            const data = calculatePercentile(measurement.ageMonths, measurement.weight, baby.gender);
             return (
               <View
                 key={measurement.id}

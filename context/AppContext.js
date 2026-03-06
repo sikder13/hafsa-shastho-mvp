@@ -329,6 +329,7 @@ useEffect(() => {
     saveMotherLog,
     updateVaccineStatus,
     addGrowthMeasurement,
+    setGrowthMeasurements,
     updateSettings,
     resetAllData,
 
