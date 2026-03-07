@@ -70,11 +70,19 @@ export default function HomeScreen() {
           borderLeftWidth: 6,
           borderLeftColor: COLORS.primary
         }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-            <Text style={{ fontSize: 36, marginRight: 12 }}>💚</Text>
-            <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.primaryDark }}>
-              হাফসা আপা বলছে
-            </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={{ fontSize: 36, marginRight: 12 }}>💚</Text>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.primaryDark }}>
+                হাফসা আপা বলছে
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Settings')}
+              style={{ padding: 8 }}
+            >
+              <Text style={{ fontSize: 24 }}>⚙️</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={{ fontSize: 18, color: COLORS.primaryDarker, marginBottom: 12, lineHeight: 26 }}>

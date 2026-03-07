@@ -2,7 +2,7 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
-import HomeScreen from '../screens/HomeScreen';
+import HomeStack from './HomeStack';
 import BabyStack from './BabyStack';
 import MotherStack from './MotherStack';
 import ChatScreen from '../screens/ChatScreen';
@@ -45,7 +45,7 @@ export default function TabNavigator() {
     >
       <Tab.Screen
         name="HomeTab"
-        component={HomeScreen}
+        component={HomeStack}
         options={{
           title: 'হোম',
           tabBarIcon: () => <TabIcon emoji="🏠" />,
