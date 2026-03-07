@@ -58,23 +58,8 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
 
-      {/* DEV RESET */}
-      <View style={{ position: 'absolute', top: 50, right: 20, zIndex: 999 }}>
-        <TouchableOpacity
-          onPress={handleResetApp}
-          style={{
-            width: 40, height: 40, borderRadius: 20,
-            backgroundColor: COLORS.danger,
-            justifyContent: 'center', alignItems: 'center',
-            shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.2, shadowRadius: 3, elevation: 4
-          }}
-        >
-          <Text style={{ fontSize: 18 }}>🔄</Text>
-        </TouchableOpacity>
-      </View>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 20, paddingBottom: 40 }}>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 60, paddingBottom: 40 }}>
 
         {/* GREETING */}
         <View style={{
@@ -93,7 +78,7 @@ export default function HomeScreen() {
           </View>
 
           <Text style={{ fontSize: 18, color: COLORS.primaryDarker, marginBottom: 12, lineHeight: 26 }}>
-            {getGreeting()}! আসসালামু আলাইকুম{motherProfile?.name ? ` ${motherProfile.name}` : ''}!
+          {getGreeting()}{motherProfile?.name ? ` ${motherProfile.name}` : ''}!
           </Text>
 
           <Text style={{ fontSize: 17, color: COLORS.primaryDark, marginBottom: 12, lineHeight: 24 }}>
@@ -258,7 +243,83 @@ export default function HomeScreen() {
             </View>
           </View>
         </TouchableOpacity>
+        {/* QUICK ACTIONS */}
+        <View style={{ marginBottom: 20 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.dark, marginBottom: 12 }}>
+            দ্রুত কাজ
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('BabyTab')}
+              style={{
+                flex: 1, backgroundColor: COLORS.feed, borderRadius: 12,
+                padding: 16, alignItems: 'center'
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>🍼</Text>
+              <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold', marginTop: 6 }}>দুধ লগ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('MotherTab')}
+              style={{
+                flex: 1, backgroundColor: COLORS.mother, borderRadius: 12,
+                padding: 16, alignItems: 'center'
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>🤱</Text>
+              <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold', marginTop: 6 }}>চেক-ইন</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('HafsaTab')}
+              style={{
+                flex: 1, backgroundColor: COLORS.primary, borderRadius: 12,
+                padding: 16, alignItems: 'center'
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>💚</Text>
+              <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold', marginTop: 6 }}>হাফসা</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
+        {/* DAILY TIP */}
+        <View style={{
+          backgroundColor: '#FFF8E1',
+          borderRadius: 12,
+          padding: 16,
+          borderLeftWidth: 4,
+          borderLeftColor: '#FFA000',
+          marginBottom: 20
+        }}>
+          <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#E65100', marginBottom: 6 }}>
+            💡 আজকের টিপস
+          </Text>
+          <Text style={{ fontSize: 14, color: '#5D4037', lineHeight: 22 }}>
+            {ageInfo.ageMonths < 3
+              ? 'নবজাতকের জন্য প্রতি ২-৩ ঘন্টায় দুধ খাওয়ান। রাতেও খাওয়াতে ভুলবেন না।'
+              : ageInfo.ageMonths < 6
+              ? 'এই বয়সে শিশু হাত দিয়ে জিনিস ধরতে শিখছে। রঙিন খেলনা কাছে রাখুন।'
+              : ageInfo.ageMonths < 12
+              ? 'শক্ত খাবার শুরু করুন — ভাত, ডাল, ডিম, কলা। একটু একটু করে।'
+              : 'শিশু হাঁটতে ও কথা বলতে শিখছে। উৎসাহ দিন এবং নিরাপদ পরিবেশ তৈরি করুন।'}
+          </Text>
+        </View>
+          {/* DEV RESET — hidden at bottom, for testing only */}
+        <TouchableOpacity
+          onPress={handleResetApp}
+          style={{
+            alignSelf: 'center',
+            marginTop: 40,
+            paddingVertical: 10,
+            paddingHorizontal: 20,
+            borderRadius: 8,
+            backgroundColor: '#F5F5F5'
+          }}
+        >
+          <Text style={{ fontSize: 12, color: '#BDBDBD' }}>
+            রিসেট (ডেভ)
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
