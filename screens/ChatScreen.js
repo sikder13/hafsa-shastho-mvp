@@ -17,6 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { streamMessageToClaude, sendMessageToClaude } from '../services/claudeAPI';
 import { buildHafsaPrompt, buildOpeningMessage, detectEmergency } from '../services/hafsaPrompt';
 import { buildFullContext } from '../utils/contextBuilder';
+import { getAIContext } from '../services/intelligenceService';
+import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
 import { processAutoLog, formatAutoLogConfirmation } from '../services/autoLogger';
 import { useApp } from '../context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -27,6 +29,7 @@ export default function ChatScreen({ baby, onBack }) {
   const {
     motherProfile,
     logs,
+    setLogs: setGlobalLogs,
     todayMotherLog,
     motherLogHistory,
     vaccineStatus,
@@ -51,20 +54,23 @@ export default function ChatScreen({ baby, onBack }) {
   }, []);
 
   const initializeChat = async () => {
-    const context = await buildFullContext({
-      baby,
-      motherProfile,
-      logs,
-      todayMotherLog,
-      motherLogHistory,
-      vaccineStatus,
-      growthMeasurements
+    // Get pre-computed assessments from intelligence service
+    const aiContext = getAIContext({
+      baby, motherProfile, logs, todayMotherLog,
+      motherLogHistory, vaccineStatus, growthMeasurements,
+      epdsData: null, epiSchedule: BD_EPI_SCHEDULE,
     });
 
-    contextRef.current = context;
+    // Also build legacy context for opening message and suggested questions
+    const legacyContext = await buildFullContext({
+      baby, motherProfile, logs, todayMotherLog,
+      motherLogHistory, vaccineStatus, growthMeasurements
+    });
 
-    if (context.suggestedQuestions && context.suggestedQuestions.length > 0) {
-      setSuggestedQuestions(context.suggestedQuestions);
+    contextRef.current = { ...legacyContext, aiContext };
+
+    if (legacyContext.suggestedQuestions && legacyContext.suggestedQuestions.length > 0) {
+      setSuggestedQuestions(legacyContext.suggestedQuestions);
     }
 
     // Load saved conversation (if from today)
@@ -74,7 +80,7 @@ export default function ChatScreen({ baby, onBack }) {
         const parsed = JSON.parse(saved);
         if (parsed.date === new Date().toDateString() && parsed.messages?.length > 0) {
           setMessages(parsed.messages);
-          return; // Don't show opening message — conversation exists
+          return;
         }
       }
     } catch (e) {
@@ -82,7 +88,7 @@ export default function ChatScreen({ baby, onBack }) {
     }
 
     // No saved conversation — show fresh opening message
-    const openingText = buildOpeningMessage(context);
+    const openingText = buildOpeningMessage(legacyContext);
 
     setMessages([{
       id: Date.now(),
@@ -132,19 +138,24 @@ export default function ChatScreen({ baby, onBack }) {
     scrollToBottom();
 
     try {
-      // Rebuild context
-      const freshContext = await buildFullContext({
-        baby,
-        motherProfile,
-        logs,
-        todayMotherLog,
-        motherLogHistory,
-        vaccineStatus,
-        growthMeasurements
-      });
-      contextRef.current = freshContext;
+     // Get pre-computed assessments from intelligence service
+     const aiContext = getAIContext({
+      baby, motherProfile, logs, todayMotherLog,
+      motherLogHistory, vaccineStatus, growthMeasurements,
+      epdsData: null, epiSchedule: BD_EPI_SCHEDULE,
+    });
 
-      const systemPrompt = buildHafsaPrompt(freshContext);
+    // Build legacy context for prompt compatibility
+    const freshContext = await buildFullContext({
+      baby, motherProfile, logs, todayMotherLog,
+      motherLogHistory, vaccineStatus, growthMeasurements
+    });
+
+    // Merge: legacy context + pre-computed assessments
+    contextRef.current = { ...freshContext, aiContext };
+
+    // Build prompt with pre-computed assessments injected
+    const systemPrompt = buildHafsaPrompt(freshContext, aiContext.assessments);
 
       const conversationHistory = messages
         .filter(m => !m.isWelcome)
@@ -152,7 +163,13 @@ export default function ChatScreen({ baby, onBack }) {
         .map(msg => ({ role: msg.role, content: msg.content }));
 
       // Auto-log from user message (question-aware)
-      const autoLogResult = await processAutoLog(userMessage, baby.id);
+      // Pass current logs so auto-logger works with fresh data
+      const autoLogResult = await processAutoLog(userMessage, baby.id, logs);
+
+     // Sync auto-logged data to AppContext so HomeScreen and BabyHub see it
+     if (autoLogResult.logged && autoLogResult.updatedLogs) {
+      setGlobalLogs(autoLogResult.updatedLogs);
+    } 
 
       // Try streaming first
       let streamWorked = false;

@@ -62,7 +62,7 @@ function isQuestion(text) {
  * @param {string} babyId - Baby's ID for storage
  * @returns {Promise<Object>} - {logged, activities, error?}
  */
-export async function processAutoLog(messageText, babyId) {
+export async function processAutoLog(messageText, babyId, currentLogs) {
   try {
     // CRITICAL: If this is a question, DO NOT auto-log
     if (isQuestion(messageText)) {
@@ -76,9 +76,14 @@ export async function processAutoLog(messageText, babyId) {
       return { logged: false, activities: [] };
     }
 
-    // Load existing logs
-    const logs = await loadLogs(babyId);
-    const updatedLogs = { ...logs };
+    // Use current logs from AppContext if available, otherwise load from storage
+    const logs = currentLogs || await loadLogs(babyId);
+    const updatedLogs = {
+      feed: [...(logs.feed || [])],
+      sleep: [...(logs.sleep || [])],
+      diaper: [...(logs.diaper || [])],
+      food: [...(logs.food || [])],
+    };
     const loggedActivities = [];
 
     for (const activity of detectedActivities) {
@@ -96,12 +101,11 @@ export async function processAutoLog(messageText, babyId) {
     }
 
     await AsyncStorage.setItem(`daily_logs_${babyId}`, JSON.stringify(updatedLogs));
-
     console.log('✅ Auto-logged:', loggedActivities.map(a => a.type).join(', '));
-
     return {
       logged: true,
-      activities: loggedActivities
+      activities: loggedActivities,
+      updatedLogs: updatedLogs
     };
 
   } catch (error) {

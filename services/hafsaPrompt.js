@@ -16,7 +16,7 @@ import { toBengaliNumber } from '../utils/helpers';
 // MAIN ENTRY
 // ============================================================
 
-export function buildHafsaPrompt(context = {}) {
+export function buildHafsaPrompt(context, preComputedAssessments) {
   // Legacy support
   if (context.babyName !== undefined && context.baby === undefined) {
     return buildHafsaPromptLegacy(context);
@@ -27,7 +27,7 @@ export function buildHafsaPrompt(context = {}) {
   const sections = [
     buildIdentity(baby, mother),
     buildFamilyData(baby, mother, vaccine, growth),
-    buildIntelligenceRules(baby, mother, patterns),
+    buildIntelligenceRules(baby, mother, patterns, preComputedAssessments),
     buildMedicalKnowledge(baby),
     buildOrchestrationRules(baby, mother, vaccine, growth)
   ];
@@ -210,7 +210,7 @@ function buildFamilyData(baby, mother, vaccine, growth) {
 // SECTION 3: INTELLIGENCE RULES (Cross-connections & Proactivity)
 // ============================================================
 
-function buildIntelligenceRules(baby, mother, patterns) {
+function buildIntelligenceRules(baby, mother, patterns, preComputedAssessments) {
   const babyName = baby?.name || 'শিশু';
 
   let rules = `# বুদ্ধিমত্তার নিয়ম
@@ -231,6 +231,15 @@ function buildIntelligenceRules(baby, mother, patterns) {
 - ইউজার "ঠিক আছে" বা "কিছু না" বলে কিন্তু চেক-ইনে মন "খারাপ" বা "বিষন্ন" → গভীরভাবে জিজ্ঞেস করো: "আপনি বলছেন ঠিক আছে, কিন্তু আমি দেখছি কয়েকদিন ধরে মন ভালো নেই। সত্যি করে বলুন 💚"
 - ইউজার "সাহায্য লাগবে না" বলে কিন্তু ডেটা দেখায় একা সামলাচ্ছে দিনের পর দিন → "ঠিক আছে! তবে মনে রাখবেন সাহায্য চাওয়া দুর্বলতা নয় 💚" — শুধু ১ বাক্য
 - ইউজার হাসি বা ভালো কথা বলে কিন্তু ঘুম ১-২ ঘন্টা → "ভালো শুনে খুশি হলাম! তবে ঘুম খুব কম হচ্ছে — এটা নিজের যত্ন নেওয়ার অংশ"
+
+## PRE-COMPUTED ASSESSMENTS (তুমি এগুলো পরিবর্তন করবে না — শুধু বাংলায় জানাবে):
+${preComputedAssessments ? `
+- Feed Status: ${preComputedAssessments.feed?.status || 'unknown'} (today: ${preComputedAssessments.feed?.todayCount || 0}, expected: ${preComputedAssessments.feed?.expectedMin || '?'}-${preComputedAssessments.feed?.expectedMax || '?'}, trend: ${preComputedAssessments.feed?.trend || 'unknown'})
+- Mother Status: severity ${preComputedAssessments.mother?.overallSeverity || 'none'}, alerts: [${(preComputedAssessments.mother?.alerts || []).join(', ')}]
+- Growth: ${preComputedAssessments.growth?.status || 'no_data'}
+- Vaccine: ${preComputedAssessments.vaccine?.status || 'unknown'} (${preComputedAssessments.vaccine?.completed || 0}/${preComputedAssessments.vaccine?.total || 0})
+- Cross-connections: [${(preComputedAssessments.crossConnections?.insights || []).map(i => i.type).join(', ')}]
+IMPORTANT: এই assessments Rules Engine থেকে এসেছে। তুমি এগুলো override করবে না। শুধু সহানুভূতিপূর্ণ বাংলায় জানাবে।` : ''}
 
 ## প্রোঅ্যাক্টিভ আচরণ (সুযোগ পেলে করো, জোর করে নয়):
 - শিশু সম্পর্কে কথা হলে মায়ের খোঁজ নাও: "আপনি নিজে কেমন আছেন?"
