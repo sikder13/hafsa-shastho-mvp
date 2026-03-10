@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toBengaliNumber, calculateAgeInMonths, countToday, formatTimeBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 import { useApp } from '../context/AppContext';
+import { getLogFeedback } from '../services/intelligenceService';
 
 export default function DailyLogScreen({ baby, onBack }) {
   const [logs, setLogs] = useState({
@@ -23,6 +24,8 @@ export default function DailyLogScreen({ baby, onBack }) {
   });
 
   // Detail panel state
+  // Intelligence feedback state
+  const [feedbackCard, setFeedbackCard] = useState(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [pendingLogType, setPendingLogType] = useState(null);
   const [pendingLogId, setPendingLogId] = useState(null);
@@ -97,6 +100,12 @@ export default function DailyLogScreen({ baby, onBack }) {
     // Show toast
     const typeName = TEXT.logTypes[type] || type;
     showToastMessage(`✓ ${typeName} লগ হয়েছে`);
+
+    // Get intelligent feedback from rules engine
+    const feedback = getLogFeedback(type, updatedLogs, babyAgeMonths);
+    setFeedbackCard(feedback);
+    // Auto-dismiss feedback after 6 seconds
+    setTimeout(() => setFeedbackCard(null), 6000);
 
     // Show detail prompt (auto-dismisses in 4 seconds)
     setPendingLogType(type);
@@ -329,6 +338,58 @@ export default function DailyLogScreen({ baby, onBack }) {
             </View>
           )}
         </View>
+{/* INTELLIGENT FEEDBACK — from rules engine */}
+{feedbackCard && feedbackCard.type === 'feed' && (
+          <View style={{
+            backgroundColor: feedbackCard.feedbackType === 'on_target' ? '#E8F5E9'
+              : feedbackCard.feedbackType === 'keep_going' ? '#FFF3E0' : '#F1F8E9',
+            borderRadius: 12, padding: 14, marginBottom: 16,
+            borderLeftWidth: 4,
+            borderLeftColor: feedbackCard.feedbackType === 'on_target' ? COLORS.success
+              : feedbackCard.feedbackType === 'keep_going' ? COLORS.warning : COLORS.primary,
+            flexDirection: 'row', alignItems: 'center',
+          }}>
+            <Text style={{ fontSize: 24, marginRight: 12 }}>
+              {feedbackCard.feedbackType === 'on_target' ? '✅' : feedbackCard.feedbackType === 'above_target' ? '👏' : '💪'}
+            </Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: COLORS.dark, fontWeight: '600' }}>
+                {feedbackCard.feedbackType === 'on_target'
+                  ? `আজকের টার্গেটে পৌঁছেছে! (${toBengaliNumber(feedbackCard.todayCount)}/${toBengaliNumber(feedbackCard.expectedMin)}-${toBengaliNumber(feedbackCard.expectedMax)})`
+                  : feedbackCard.feedbackType === 'above_target'
+                  ? `দারুণ! আজ ${toBengaliNumber(feedbackCard.todayCount)} বার খাইয়েছেন`
+                  : feedbackCard.feedbackType === 'almost_there'
+                  ? `প্রায় হয়ে গেছে! আরো ${toBengaliNumber(feedbackCard.remaining)} বার দরকার`
+                  : `আজ ${toBengaliNumber(feedbackCard.todayCount)} বার — আরো ${toBengaliNumber(feedbackCard.remaining)} বার দরকার`}
+              </Text>
+              {feedbackCard.yesterdayCount > 0 && (
+                <Text style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>
+                  গতকাল {toBengaliNumber(feedbackCard.yesterdayCount)} বার খেয়েছিল
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {feedbackCard && feedbackCard.type !== 'feed' && (
+          <View style={{
+            backgroundColor: '#F1F8E9', borderRadius: 12, padding: 14, marginBottom: 16,
+            borderLeftWidth: 4, borderLeftColor: COLORS.primary,
+            flexDirection: 'row', alignItems: 'center',
+          }}>
+            <Text style={{ fontSize: 24, marginRight: 12 }}>✅</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: COLORS.dark, fontWeight: '600' }}>
+                আজ {toBengaliNumber(feedbackCard.todayCount)} বার
+              </Text>
+              {feedbackCard.yesterdayCount > 0 && (
+                <Text style={{ fontSize: 12, color: COLORS.gray, marginTop: 2 }}>
+                  গতকাল {toBengaliNumber(feedbackCard.yesterdayCount)} বার ছিল
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* QUICK LOG BUTTONS */}
         <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>
