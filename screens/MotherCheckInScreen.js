@@ -17,6 +17,7 @@ import { useApp } from '../context/AppContext';
 import { toBengaliNumber, calculateAge, getRecoveryStage } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 import { isEPDSDue } from './EdinburghScaleScreen';
+import { getCheckInAssessment } from '../services/intelligenceService';
 
 const TOTAL_STEPS = 4; // Mood, Physical, Self-Care, Hafsa Response
 
@@ -158,10 +159,20 @@ export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
   // ============================================================
 
   const getHafsaResponse = () => {
-    const patterns = getRecentMoodPattern();
+    // Get pre-computed assessment from Intelligence Service
+    const assessment = getCheckInAssessment(
+      { mood, bleeding, pain, breastPain, csectionHealing, waterIntake, mealsEaten, sleepHours, hadHelp, breastfeedingSessions },
+      motherLogHistory,
+      motherProfile,
+      postpartumDays,
+      null // EPDS data — will connect when stored separately
+    );
+
     const sections = [];
 
-    // Opening — always warm and personal
+    // ============================================================
+    // OPENING — warm, personal, mood-aware
+    // ============================================================
     if (mood === 'happy') {
       sections.push(`${motherName}, আলহামদুলিল্লাহ! আজ আপনি ভালো আছেন, এটা শুনে খুশি হলাম। 😊`);
     } else if (mood === 'okay') {
@@ -172,27 +183,58 @@ export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
       sections.push(`${motherName}, আজ অনেক কঠিন দিন। আপনি একা না, আমি আপনার পাশে আছি। 💚`);
     }
 
-    // Mood pattern alert
-    if (patterns && patterns.sadCount >= 3) {
-      sections.push('');
-      sections.push(`⚠️ আমি লক্ষ্য করেছি গত ${toBengaliNumber(patterns.totalDays)} দিনে ${toBengaliNumber(patterns.sadCount)} দিন আপনার মন ভালো ছিল না। এটা অনেক মায়ের হয় — আপনি দুর্বল নন। কিন্তু কারো সাথে কথা বলুন — স্বামী, মা, বা বিশ্বস্ত কেউ। প্রয়োজনে ডাক্তারের সাথে কথা বলুন।`);
+    // ============================================================
+    // EMOTIONAL CONTRADICTION DETECTION (Intelligence Service)
+    // ============================================================
+    if (
+      (mood === 'okay' || mood === 'happy') &&
+      assessment.overallSeverity === 'high' || assessment.overallSeverity === 'critical'
+    ) {
+      const contradictions = [];
+      if (assessment.sleep.pattern.consecutiveLowDays >= 2) contradictions.push('ঘুম কম হচ্ছে');
+      if (assessment.support.consecutiveNoHelpDays >= 3) contradictions.push('কয়েকদিন ধরে একা সামলাচ্ছেন');
+      if (assessment.epds.score >= 10) contradictions.push('গত মূল্যায়নে স্কোর উদ্বেগজনক ছিল');
+      if (assessment.mood.pattern.consecutiveSadDays >= 2) contradictions.push('আগের কয়েকদিন মন ভালো ছিল না');
+
+      if (contradictions.length >= 2) {
+        sections.push('');
+        sections.push(`💚 আপনি বলছেন ঠিক আছেন, কিন্তু আমি দেখছি ${contradictions.join(', ')}। সত্যি করে বলুন — কেমন আছেন? সাহায্য চাওয়া দুর্বলতা নয়।`);
+      }
     }
 
-    // Bleeding assessment
-    if (bleeding === 'heavy') {
+    // ============================================================
+    // MOOD PATTERN ALERT (from Intelligence Service)
+    // ============================================================
+    if (assessment.mood.pattern.consecutiveSadDays >= 5) {
       sections.push('');
-      sections.push(`🔴 রক্তপাত বেশি হচ্ছে। যদি ১ ঘন্টায় একটি প্যাড পুরো ভিজে যায়, বা বড় বড় রক্তের দলা বের হয় — এখনই ডাক্তার দেখান। দেরি করবেন না।`);
-    } else if (bleeding === 'moderate' && postpartumDays > 14) {
+      sections.push(`⚠️ গত ${toBengaliNumber(assessment.mood.pattern.consecutiveSadDays)} দিন ধরে মন ভালো নেই। এটা প্রসব-পরবর্তী বিষণ্নতার লক্ষণ হতে পারে — এটা অনেক মায়ের হয় এবং চিকিৎসায় ভালো হয়। অনুগ্রহ করে ডাক্তারের সাথে কথা বলুন।`);
+    } else if (assessment.mood.pattern.consecutiveSadDays >= 3) {
       sections.push('');
-      sections.push(`🟡 ${toBengaliNumber(postpartumDays)} দিন পরেও মাঝারি রক্তপাত। সাধারণত ২ সপ্তাহ পর কমে যাওয়ার কথা। পরবর্তী ডাক্তার ভিজিটে জানান।`);
-    } else if (bleeding === 'light' || bleeding === 'none') {
+      sections.push(`⚠️ গত ${toBengaliNumber(assessment.mood.pattern.consecutiveSadDays)} দিন ধরে মন ভালো না। কারো সাথে কথা বলুন — স্বামী, মা, বা বিশ্বস্ত কেউ। আপনি দুর্বল নন।`);
+    }
+
+    // ============================================================
+    // POSTPARTUM TIMELINE-AWARE PHYSICAL ASSESSMENT
+    // ============================================================
+
+    // --- Bleeding (from assessment) ---
+    if (assessment.bleeding.alerts.includes('heavy_bleeding_late')) {
+      sections.push('');
+      sections.push(`🔴 ${toBengaliNumber(postpartumDays)} দিন পরেও বেশি রক্তপাত — এটা স্বাভাবিক নয়। ১ ঘন্টায় প্যাড পুরো ভিজলে বা বড় দলা বের হলে এখনই ডাক্তার দেখান।`);
+    } else if (assessment.bleeding.alerts.includes('bleeding_after_6weeks')) {
+      sections.push('');
+      sections.push(`🟡 ৬ সপ্তাহ পরেও রক্তপাত আছে। পরবর্তী ডাক্তার ভিজিটে জানান।`);
+    } else if (assessment.bleeding.alerts.includes('bleeding_increasing')) {
+      sections.push('');
+      sections.push(`⚠️ রক্তপাত বাড়ছে — কয়েকদিন ধরে বাড়ার ধারা দেখা যাচ্ছে। ডাক্তারকে জানান।`);
+    } else if (bleeding === 'none' || bleeding === 'light') {
       if (postpartumDays > 7) {
         sections.push('');
         sections.push('✅ রক্তপাত স্বাভাবিক পর্যায়ে আছে।');
       }
     }
 
-    // Pain assessment
+    // --- Pain ---
     if (pain === 'high') {
       sections.push('');
       if (isCsection) {
@@ -202,14 +244,18 @@ export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
       }
     } else if (pain === 'medium') {
       sections.push('');
-      sections.push('🩹 মাঝারি ব্যথা স্বাভাবিক এই সময়ে। আস্তে আস্তে কমবে। বিশ্রাম নিন।');
+      if (postpartumDays <= 14) {
+        sections.push('🩹 মাঝারি ব্যথা — এই সময়ে স্বাভাবিক। আস্তে আস্তে কমবে।');
+      } else {
+        sections.push(`🩹 ${toBengaliNumber(postpartumDays)} দিন পরেও মাঝারি ব্যথা। পরবর্তী চেকআপে ডাক্তারকে জানান।`);
+      }
     }
 
-    // C-section healing
+    // --- C-section healing (from assessment) ---
     if (isCsection && csectionHealing) {
       sections.push('');
-      if (csectionHealing === 'worsening') {
-        sections.push('⚠️ সেলাই খারাপ হচ্ছে মনে হচ্ছে। যদি লাল, ফোলা, পুঁজ বের হয়, বা জ্বর থাকে — আজই ডাক্তার দেখান।');
+      if (assessment.alerts.includes('csection_worsening')) {
+        sections.push('⚠️ সেলাই খারাপ হচ্ছে। লাল, ফোলা, পুঁজ, বা জ্বর থাকলে — আজই ডাক্তার দেখান। দেরি করবেন না।');
       } else if (csectionHealing === 'same' && postpartumDays > 14) {
         sections.push('🟡 ২ সপ্তাহ পরেও সেলাই একই আছে। পরবর্তী চেকআপে ডাক্তারকে জানান।');
       } else if (csectionHealing === 'improving') {
@@ -217,67 +263,108 @@ export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
       }
     }
 
-    // Breast pain
+    // --- Breast pain ---
     if (breastPain === true) {
       sections.push('');
-      sections.push('🤱 স্তনে ব্যথা? কিছু পরামর্শ: গরম সেঁক দিন দুধ খাওয়ানোর আগে। ঠাণ্ডা সেঁক দিন খাওয়ানোর পরে। শিশুকে ঠিকমতো লাগানো (latching) নিশ্চিত করুন। ব্যথা বাড়লে বা জ্বর আসলে ডাক্তার দেখান (mastitis হতে পারে)।');
+      sections.push('🤱 স্তনে ব্যথা? গরম সেঁক দিন দুধ খাওয়ানোর আগে, ঠাণ্ডা সেঁক পরে। শিশুকে ঠিকমতো লাগানো (latching) নিশ্চিত করুন। ব্যথা বাড়লে বা জ্বর আসলে ডাক্তার দেখান।');
     }
 
-    // Sleep assessment
-    if (sleepHours === '1-2') {
+    // ============================================================
+    // SELF-CARE ASSESSMENT (from Intelligence Service)
+    // ============================================================
+
+    // --- Sleep (timeline-aware) ---
+    if (assessment.sleep.pattern.trend === 'critical') {
       sections.push('');
-      sections.push(`😴 মাত্র ১-২ ঘন্টা ঘুম! এটা আপনার শরীর ও মনের জন্য ক্ষতিকর। আজ যখনই ${baby?.name || 'শিশু'} ঘুমাবে, আপনিও ঘুমান — কাজ রেখে দিন। পরিবারকে বলুন সাহায্য করতে।`);
-      if (patterns && patterns.lowSleepCount >= 3) {
-        sections.push(`⚠️ গত কয়েকদিন ধরে ঘুম খুব কম হচ্ছে। এটা গুরুতর। স্বামী বা পরিবারকে বলুন রাতে একবার দায়িত্ব নিতে।`);
-      }
+      sections.push(`😴 ঘুম বিপজ্জনকভাবে কম! গড়ে ${toBengaliNumber(assessment.sleep.pattern.avgHours || 0)} ঘন্টা। আজই কাউকে বলুন রাতে দায়িত্ব নিতে। আপনার শরীর ও মনের জন্য ঘুম অত্যন্ত দরকার।`);
+    } else if (sleepHours === '1-2') {
+      sections.push('');
+      sections.push(`😴 মাত্র ১-২ ঘন্টা ঘুম! ${baby?.name || 'শিশু'} ঘুমালে আপনিও ঘুমান — কাজ রেখে দিন।`);
     } else if (sleepHours === '3-4') {
       sections.push('');
-      sections.push('😴 ৩-৪ ঘন্টা ঘুম — কম, তবে নবজাতকের সাথে এটা সাধারণ। দুপুরে ২০-৩০ মিনিট ঘুমানোর চেষ্টা করুন।');
+      if (postpartumDays <= 30) {
+        sections.push('😴 ৩-৪ ঘন্টা — নবজাতকের সাথে এটা সাধারণ। দুপুরে ২০-৩০ মিনিট ঘুমানোর চেষ্টা করুন।');
+      } else {
+        sections.push('😴 ৩-৪ ঘন্টা ঘুম এখনো কম। এই বয়সে শিশু একটু বেশি ঘুমানো উচিত — রাতের ভাগ কাউকে দিন।');
+      }
     } else if (sleepHours === '5-6' || sleepHours === '7+') {
       sections.push('');
       sections.push('😴 ভালো ঘুম হচ্ছে! এটা আপনার সুস্থতার জন্য খুব গুরুত্বপূর্ণ। ✅');
     }
 
-    // Water & meals
-    if (waterIntake < 4) {
+    // --- Water (connected to breastfeeding) ---
+    if (assessment.alerts.includes('low_water_intake') && breastfeedingSessions > 0) {
       sections.push('');
-      sections.push(`💧 আজ মাত্র ${toBengaliNumber(waterIntake)} গ্লাস পানি। দুধ তৈরিতে পানি লাগে। অন্তত ৮ গ্লাস খাওয়ার চেষ্টা করুন। পাশে বোতল রাখুন।`);
+      sections.push(`💧 আজ মাত্র ${toBengaliNumber(waterIntake)} গ্লাস পানি — আপনি দুধ খাওয়াচ্ছেন, তাই অন্তত ৮ গ্লাস দরকার। পানি কম হলে দুধের পরিমাণ কমতে পারে। পাশে বোতল রাখুন।`);
+    } else if (waterIntake < 4) {
+      sections.push('');
+      sections.push(`💧 পানি ${toBengaliNumber(waterIntake)}/৮ গ্লাস — আরো বাড়ান।`);
     } else if (waterIntake >= 8) {
       sections.push('');
-      sections.push(`💧 ${toBengaliNumber(waterIntake)} গ্লাস পানি — দারুণ! বুকের দুধের জন্য এটা খুব ভালো। ✅`);
+      sections.push(`💧 ${toBengaliNumber(waterIntake)} গ্লাস পানি — দারুণ! ✅`);
     }
 
+    // --- Meals ---
     if (mealsEaten < 2) {
       sections.push('');
-      sections.push('🍽️ আজ ঠিকমতো খাওয়া হয়নি। আপনি সুস্থ না থাকলে শিশুর যত্ন নেওয়া কঠিন। অন্তত ৩ বেলা খান।');
+      sections.push('🍽️ ঠিকমতো খাওয়া হয়নি। আপনি সুস্থ না থাকলে শিশুর যত্ন নেওয়া কঠিন। অন্তত ৩ বেলা খান।');
     }
 
-    // Help tracking
-    if (hadHelp === false) {
+    // --- Help + isolation risk (from Intelligence Service cross-check) ---
+    if (hadHelp === false && assessment.support.consecutiveNoHelpDays >= 5) {
       sections.push('');
-      sections.push('🤝 আজ কেউ সাহায্য করেনি। একা সব সামলানো কঠিন — এটা স্বীকার করা দুর্বলতা নয়, বুদ্ধিমানের কাজ। স্বামী বা পরিবারকে নির্দিষ্ট কাজ বলে দিন (যেমন "বাচ্চাকে ৩০ মিনিট ধরো, আমি ঘুমাই")।');
-      if (patterns && patterns.noHelpCount >= 5) {
-        sections.push('');
-        sections.push(`💛 গত ${toBengaliNumber(patterns.totalDays)} দিনে ${toBengaliNumber(patterns.noHelpCount)} দিন আপনি একা সামলেছেন। এটা অনেক কঠিন। আপনি অনেক শক্তিশালী, কিন্তু সাহায্য দরকার। আজই কারো সাথে খোলামেলা কথা বলুন।`);
-      }
+      sections.push(`🤝 গত ${toBengaliNumber(assessment.support.consecutiveNoHelpDays)} দিন ধরে একা সামলাচ্ছেন। এটা অনেক কঠিন। আজই কারো সাথে খোলামেলা কথা বলুন — নির্দিষ্ট কাজ ভাগ করে দিতে বলুন।`);
+    } else if (hadHelp === false && assessment.support.consecutiveNoHelpDays >= 3) {
+      sections.push('');
+      sections.push('🤝 কয়েকদিন ধরে একা সামলাচ্ছেন। সাহায্য চাওয়া দুর্বলতা নয়, বুদ্ধিমানের কাজ।');
+    } else if (hadHelp === false) {
+      sections.push('');
+      sections.push('🤝 আজ একা সামলেছেন। কাউকে বলুন — "বাচ্চাকে ৩০ মিনিট ধরো, আমি ঘুমাই"।');
     } else if (hadHelp === true) {
       sections.push('');
-      sections.push('🤝 আজ সাহায্য পেয়েছেন — আলহামদুলিল্লাহ! সাহায্য চাওয়া এবং নেওয়া দুটোই গুরুত্বপূর্ণ। ✅');
+      sections.push('🤝 আজ সাহায্য পেয়েছেন — আলহামদুলিল্লাহ! ✅');
     }
 
-    // Breastfeeding
+    // --- Breastfeeding (timeline-aware) ---
     if (breastfeedingSessions > 0) {
       sections.push('');
-      if (postpartumDays <= 30 && breastfeedingSessions >= 8) {
-        sections.push(`🍼 আজ ${toBengaliNumber(breastfeedingSessions)} বার দুধ খাওয়ানো — দারুণ! নবজাতকের জন্য ৮-১২ বার স্বাভাবিক। ✅`);
-      } else if (postpartumDays <= 30 && breastfeedingSessions < 6) {
-        sections.push(`🍼 আজ ${toBengaliNumber(breastfeedingSessions)} বার দুধ খাওয়ানো। নবজাতকের জন্য ৮-১২ বার দরকার। বেশি বেশি খাওয়ালে দুধ বেশি তৈরি হয়।`);
-      } else {
-        sections.push(`🍼 আজ ${toBengaliNumber(breastfeedingSessions)} বার দুধ খাওয়ানো হয়েছে।`);
+      if (postpartumDays <= 30) {
+        if (breastfeedingSessions >= 8) {
+          sections.push(`🤱 আজ ${toBengaliNumber(breastfeedingSessions)} বার দুধ খাওয়ানো — নবজাতকের জন্য দারুণ! ✅`);
+        } else if (breastfeedingSessions < 6) {
+          sections.push(`🤱 আজ ${toBengaliNumber(breastfeedingSessions)} বার — নবজাতকের জন্য ৮-১২ বার দরকার। বেশি খাওয়ালে দুধ বেশি তৈরি হয়।`);
+        }
+      } else if (postpartumDays <= 180) {
+        if (breastfeedingSessions >= 6) {
+          sections.push(`🤱 ${toBengaliNumber(breastfeedingSessions)} বার দুধ খাওয়ানো — এই বয়সে ভালো! ✅`);
+        }
       }
     }
 
-    // Recovery progress (always show)
+    // ============================================================
+    // WEEK-OVER-WEEK COMPARISON (from history)
+    // ============================================================
+    if (motherLogHistory && motherLogHistory.length >= 7) {
+      const thisWeek = motherLogHistory.slice(0, 7);
+      const lastWeek = motherLogHistory.slice(7, 14);
+
+      if (lastWeek.length >= 5) {
+        const thisWeekHappy = thisWeek.filter(l => l.mood === 'happy').length;
+        const lastWeekHappy = lastWeek.filter(l => l.mood === 'happy').length;
+
+        if (thisWeekHappy > lastWeekHappy + 1) {
+          sections.push('');
+          sections.push(`📈 গত সপ্তাহের চেয়ে এই সপ্তাহে মন বেশি ভালো আছে! চালিয়ে যান! 🌟`);
+        } else if (thisWeekHappy < lastWeekHappy - 1) {
+          sections.push('');
+          sections.push(`📉 গত সপ্তাহের চেয়ে এই সপ্তাহে একটু কম ভালো লাগছে। এটা স্বাভাবিক — কিন্তু খেয়াল রাখুন।`);
+        }
+      }
+    }
+
+    // ============================================================
+    // RECOVERY PROGRESS (always show)
+    // ============================================================
     sections.push('');
     if (isCsection) {
       sections.push(`📊 সিজারের পর ${toBengaliNumber(postpartumDays)} দিন। ${recovery.description}। সুস্থতা ${toBengaliNumber(recovery.percentComplete)}%।`);
@@ -285,12 +372,15 @@ export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
       sections.push(`📊 ডেলিভারির পর ${toBengaliNumber(postpartumDays)} দিন। ${recovery.description}। সুস্থতা ${toBengaliNumber(recovery.percentComplete)}%।`);
     }
 
-    // Closing — always encouraging
+    // ============================================================
+    // CLOSING — always encouraging
+    // ============================================================
     sections.push('');
     sections.push(`${motherName}, আপনি দারুণ মা। নিজের যত্ন নিন। 💚`);
 
     return sections.join('\n');
   };
+
 
   // ============================================================
   // REUSABLE OPTION BUTTON
