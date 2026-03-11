@@ -129,20 +129,43 @@ export async function processAutoLog(messageText, babyId, currentLogs) {
  */
 function detectActivities(text) {
   const activities = [];
-
   if (!text || typeof text !== 'string') return activities;
-
   const lowerText = text.toLowerCase().trim();
 
-  // FOOD FIRST (check before feed to avoid conflicts)
-  const foundFood = FOOD_PATTERNS.some(p => lowerText.includes(p.toLowerCase()));
+  // ============================================================
+  // GLOBAL EXCLUSIONS — if ANY of these match, do NOT auto-log
+  // Prevents false positives from questions, future tense, shopping
+  // ============================================================
+  const EXCLUSIONS = [
+    // Questions (already handled by isQuestion, but double safety)
+    '?', 'কি?', 'কী?', 'কেন?', 'কত?', 'কখন?', 'কিভাবে?',
+    // Future tense / planning
+    'খাওয়াব', 'দিব', 'দিবো', 'করব', 'করবো', 'দেব', 'দেবো',
+    'খাওয়াতে হবে', 'দিতে হবে', 'করতে হবে',
+    // Shopping / buying
+    'কিনতে', 'কিনব', 'কিনলাম', 'কিনেছি', 'দরকার', 'লাগবে',
+    'আনতে', 'আনব', 'আনলাম',
+    // Asking about / discussing (not doing)
+    'কয়বার', 'কতবার', 'কতক্ষণ', 'কখন খাওয়াব', 'কি খাওয়াব',
+    'উচিত', 'পারি', 'যায়', 'ভালো হবে',
+  ];
 
-  if (foundFood) {
-    activities.push({ type: 'food', confidence: 'high' });
-    return activities; // Don't also log as feed
+  if (EXCLUSIONS.some(ex => lowerText.includes(ex))) {
+    return activities;
   }
 
-  // FEED (only if food NOT detected)
+  // ============================================================
+  // TIER 1: Exact phrase match (highest confidence)
+  // ============================================================
+
+  // FOOD FIRST (check before feed to avoid conflicts)
+  const foundFoodT1 = FOOD_PATTERNS.some(p => lowerText.includes(p.toLowerCase()));
+  if (foundFoodT1) {
+    activities.push({ type: 'food', confidence: 'high' });
+    return activities;
+  }
+
+  // FEED
   if (FEED_PATTERNS.some(p => lowerText.includes(p.toLowerCase()))) {
     activities.push({ type: 'feed', confidence: 'high' });
   }
@@ -155,6 +178,74 @@ function detectActivities(text) {
   // DIAPER
   if (DIAPER_PATTERNS.some(p => lowerText.includes(p.toLowerCase()))) {
     activities.push({ type: 'diaper', confidence: 'high' });
+  }
+
+  // If Tier 1 found something, return
+  if (activities.length > 0) return activities;
+
+  // ============================================================
+  // TIER 2: Root word + action verb matching (fallback)
+  // Only runs if Tier 1 found nothing
+  // Requires: subject keyword + action verb stem
+  // ============================================================
+
+  // Action verb stems — indicates something HAPPENED (past/present, not future)
+  const ACTION_VERBS = [
+    'খেল', 'খেয়েছে', 'খাইছে', 'খাইলো', 'খাইসে', 'খাচ্ছে',
+    'খেয়ে', 'খায়ছে', 'খালো', 'খাইয়া',
+    'করেছে', 'করছে', 'করসে', 'করলো', 'করল', 'কইরছে', 'কইরসে',
+    'হয়েছে', 'হইছে', 'হচ্ছে', 'হইসে', 'হলো', 'হল',
+    'দিলাম', 'দিয়েছি', 'দিছি', 'দিসি', 'দিয়াইছি', 'দিলাইছি',
+    'খাওয়ালাম', 'খাওয়াইলাম', 'খাওয়াইছি', 'খাওয়াইসি',
+    'খালাম', 'খাইয়েছি', 'খাওয়াচ্ছি',
+    'বদলালাম', 'বদলাইলাম', 'বদলাইছি', 'বদলাইসি', 'পাল্টালাম', 'পাল্টাইছি',
+    'পড়েছে', 'পড়ছে', 'পড়লো', 'পড়সে',
+    'গেছে', 'গেল', 'গেসে', 'যাচ্ছে',
+    'শুইছে', 'শুইসে', 'শুইয়েছে',
+  ];
+
+  const hasAction = ACTION_VERBS.some(v => lowerText.includes(v));
+  if (!hasAction) return activities;
+
+  // --- FOOD (Tier 2) --- check before feed
+  const FOOD_ROOTS = [
+    'ভাত', 'দাল', 'ডাল', 'খিচুড়ি', 'খিচুরি', 'ডিম', 'কলা', 'আপেল', 'আম',
+    'সবজি', 'মাছ', 'মুরগি', 'সুজি', 'সেরেলাক', 'নুডলস', 'পাউরুটি', 'দই',
+    'ফল', 'পেপে', 'পেয়ারা', 'খাবার', 'সলিড', 'solid', 'food',
+  ];
+
+  if (FOOD_ROOTS.some(root => lowerText.includes(root))) {
+    activities.push({ type: 'food', confidence: 'medium' });
+    return activities;
+  }
+
+  // --- FEED (Tier 2) ---
+  const FEED_ROOTS = ['দুধ', 'milk', 'ফিড', 'feed', 'বুকের', 'ব্রেস্ট', 'ফর্মুলা', 'বোতল'];
+
+  if (FEED_ROOTS.some(root => lowerText.includes(root))) {
+    activities.push({ type: 'feed', confidence: 'medium' });
+  }
+
+  // --- SLEEP (Tier 2) ---
+  const SLEEP_ROOTS = ['ঘুম', 'ঘুমা', 'শুই', 'শোয়া', 'নিদ্রা', 'sleep', 'নিন্দা'];
+
+  if (SLEEP_ROOTS.some(root => lowerText.includes(root))) {
+    // Extra check: "ঘুম হয়নি" or "ঘুম হচ্ছে না" = NOT sleeping
+    const negatives = ['হয়নি', 'হচ্ছে না', 'হয় না', 'পারছে না', 'পারছি না', 'নাই', 'পায় না'];
+    if (!negatives.some(neg => lowerText.includes(neg))) {
+      activities.push({ type: 'sleep', confidence: 'medium' });
+    }
+  }
+
+  // --- DIAPER (Tier 2) ---
+  const DIAPER_ROOTS = [
+    'ডায়াপার', 'diaper', 'পটি', 'পায়খানা', 'প্রস্রাব',
+    'সু সু', 'পু পু', 'হিসু', 'পেচ্ছাপ', 'পেচ্ছাব',
+    'ন্যাপি', 'nappy',
+  ];
+
+  if (DIAPER_ROOTS.some(root => lowerText.includes(root))) {
+    activities.push({ type: 'diaper', confidence: 'medium' });
   }
 
   return activities;
