@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculatePercentile } from '../data/whoGrowthStandards';
 import { toBengaliNumber, calculateAgeInMonths, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
+import { getGrowthInsight } from '../services/intelligenceService';
 
 export default function GrowthScreen({ baby, onBack }) {
   const [measurements, setMeasurements] = useState([]);
@@ -54,6 +55,9 @@ export default function GrowthScreen({ baby, onBack }) {
     }
   };
 
+  // Intelligence feedback state
+  const [growthFeedback, setGrowthFeedback] = useState(null);
+
   const handleAddMeasurement = () => {
     if (!weight || !height) {
       Alert.alert('ত্রুটি', 'ওজন এবং উচ্চতা দিন');
@@ -80,10 +84,13 @@ export default function GrowthScreen({ baby, onBack }) {
     setMeasurements(updated);
     saveMeasurements(updated);
     
+    // Get intelligent feedback from rules engine
+    const feedback = getGrowthInsight(updated, calculateAgeInMonths(baby.birth_date), baby.gender);
+    setGrowthFeedback(feedback);
+
     setWeight('');
     setHeight('');
     setShowAddForm(false);
-    Alert.alert('সফল!', 'পরিমাপ সংরক্ষিত হয়েছে');
   };
 
   const getStatusText = (status) => {
@@ -436,7 +443,51 @@ export default function GrowthScreen({ baby, onBack }) {
             </View>
           </View>
         )}
-
+ {/* INTELLIGENT GROWTH FEEDBACK — from rules engine */}
+ {growthFeedback && (
+          <View style={{
+            backgroundColor: growthFeedback.feedbackType === 'healthy' ? '#E8F5E9'
+              : growthFeedback.feedbackType === 'concern' ? '#FFEBEE'
+              : growthFeedback.feedbackType === 'good_velocity' ? '#E8F5E9'
+              : growthFeedback.feedbackType === 'slow_velocity' ? '#FFF3E0'
+              : '#F1F8E9',
+            borderRadius: 12, padding: 16, marginBottom: 20,
+            borderLeftWidth: 4,
+            borderLeftColor: growthFeedback.feedbackType === 'healthy' ? COLORS.success
+              : growthFeedback.feedbackType === 'concern' ? COLORS.danger
+              : growthFeedback.feedbackType === 'slow_velocity' ? COLORS.warning
+              : COLORS.primary,
+          }}>
+            <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8,
+              color: growthFeedback.feedbackType === 'concern' ? COLORS.danger
+                : growthFeedback.feedbackType === 'slow_velocity' ? COLORS.warning
+                : COLORS.primaryDark }}>
+              {growthFeedback.feedbackType === 'healthy' ? '✅ ওজন স্বাভাবিক!'
+                : growthFeedback.feedbackType === 'concern' ? '⚠️ ওজন নিয়ে সতর্ক হন'
+                : growthFeedback.feedbackType === 'good_velocity' ? '✅ বৃদ্ধির গতি ভালো!'
+                : growthFeedback.feedbackType === 'slow_velocity' ? '⚠️ বৃদ্ধি একটু ধীর'
+                : '📊 পরিমাপ সংরক্ষিত'}
+            </Text>
+            <Text style={{ fontSize: 14, color: COLORS.dark, lineHeight: 22 }}>
+              {growthFeedback.feedbackType === 'healthy'
+                ? `${baby.name} এর ওজন WHO মান অনুযায়ী স্বাভাবিক পরিসরে আছে। চালিয়ে যান! 💚`
+                : growthFeedback.feedbackType === 'concern'
+                ? `${baby.name} এর ওজন স্বাভাবিকের নিচে। পরবর্তী ডাক্তার ভিজিটে এটা জানান। খাওয়ানোর পরিমাণ বাড়ান।`
+                : growthFeedback.feedbackType === 'good_velocity'
+                ? `গত পরিমাপের চেয়ে ভালো বাড়ছে। প্রতি মাসে ${toBengaliNumber(growthFeedback.assessment?.velocity?.gramsPerMonth || 0)} গ্রাম বাড়ছে — দারুণ!`
+                : growthFeedback.feedbackType === 'slow_velocity'
+                ? `ওজন বৃদ্ধির হার কম (${toBengaliNumber(growthFeedback.assessment?.velocity?.gramsPerMonth || 0)} গ্রাম/মাস)। ৬ মাসের নিচে ৪০০+ গ্রাম/মাস দরকার। ডাক্তারকে জানান।`
+                : 'পরিমাপ সফলভাবে সংরক্ষিত হয়েছে।'}
+            </Text>
+            {growthFeedback.milestone && (
+              <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#C8E6C9' }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: COLORS.primaryDark }}>
+                  🎉 {baby.name} {toBengaliNumber(growthFeedback.milestone)} কেজি হয়েছে!
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
         {/* VISUAL CHART */}
         {renderSimpleChart()}
 
