@@ -339,11 +339,16 @@ export default function ChatScreen({ baby, onBack }) {
           contentContainerStyle={{ padding: 16, paddingBottom: 8 }}
           onContentSizeChange={scrollToBottom}
         >
-          {messages.map((msg) => (
+          {messages.map((msg, index) => (
             <MessageBubble
               key={msg.id}
               message={msg}
               isUser={msg.role === 'user'}
+              previousUserMessage={
+                msg.role === 'assistant' && index > 0
+                  ? messages[index - 1]?.content
+                  : null
+              }
             />
           ))}
 
