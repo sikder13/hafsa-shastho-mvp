@@ -14,9 +14,13 @@
     "assetBundlePatterns": [
       "**/*"
     ],
-    "ios": {
+   "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hafsahealth.app"
+      "bundleIdentifier": "com.hafsahealth.app",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "হাফসা আপার সাথে কথা বলতে স্পিচ রিকগনিশন দরকার",
+        "NSMicrophoneUsageDescription": "হাফসা আপার সাথে কথা বলতে মাইক্রোফোন দরকার"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,12 +36,19 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-  "expo-font"
-],
-"extra": {
-  "supabaseUrl": "https://unnmjrrpqftpcknabqwq.supabase.co",
-  "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVubm1qcnJwcWZ0cGNrbmFicXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDgzNzMsImV4cCI6MjA4Njc4NDM3M30.plrrQbgswaSTmnHwHQvUophs2CZDPAxylf0zNcrCeFo"
-}
+   "plugins": [
+      "expo-font",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "হাফসা আপার সাথে কথা বলতে মাইক্রোফোন দরকার",
+          "speechRecognitionPermission": "আপনার কথা বুঝতে স্পিচ রিকগনিশন দরকার"
+        }
+      ]
+    ],
+    "extra": {
+      "supabaseUrl": "https://unnmjrrpqftpcknabqwq.supabase.co",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVubm1qcnJwcWZ0cGNrbmFicXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDgzNzMsImV4cCI6MjA4Njc4NDM3M30.plrrQbgswaSTmnHwHQvUophs2CZDPAxylf0zNcrCeFo"
+    }
   }
 }

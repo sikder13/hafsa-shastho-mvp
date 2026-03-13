@@ -24,6 +24,7 @@ import { useApp } from '../context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
+import { useVoiceInput } from '../services/voiceService';
 
 export default function ChatScreen({ baby, onBack }) {
   const {
@@ -44,6 +45,26 @@ export default function ChatScreen({ baby, onBack }) {
   const scrollViewRef = useRef(null);
   const abortRef = useRef(null);
   const contextRef = useRef(null);
+  // Voice input
+  const {
+    isListening, partialText, finalText,
+    startListening, stopListening, cancelListening,
+    isAvailable: voiceAvailable, error: voiceError
+  } = useVoiceInput();
+
+  // When voice finalText arrives, put it in input field for review
+  useEffect(() => {
+    if (finalText) {
+      setInputText(prev => prev ? prev + ' ' + finalText : finalText);
+    }
+  }, [finalText]);
+
+  // Show voice error briefly
+  useEffect(() => {
+    if (voiceError) {
+      Alert.alert('🎤', voiceError);
+    }
+  }, [voiceError]);
 
   useEffect(() => {
     initializeChat();
@@ -404,6 +425,42 @@ export default function ChatScreen({ baby, onBack }) {
           ) : null}
         </ScrollView>
 
+        {/* VOICE RECORDING INDICATOR */}
+        {isListening && (
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            backgroundColor: '#FFEBEE',
+            borderTopWidth: 1,
+            borderTopColor: '#FFCDD2',
+          }}>
+            <Text style={{ fontSize: 16, marginRight: 8 }}>🔴</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, color: '#D32F2F', fontWeight: 'bold' }}>
+                শুনছি... বলুন
+              </Text>
+              {partialText ? (
+                <Text style={{ fontSize: 15, color: '#333', marginTop: 4, fontStyle: 'italic' }}>
+                  {partialText}
+                </Text>
+              ) : null}
+            </View>
+            <TouchableOpacity
+              onPress={cancelListening}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                backgroundColor: '#FFCDD2',
+                borderRadius: 12,
+              }}
+            >
+              <Text style={{ fontSize: 13, color: '#D32F2F', fontWeight: 'bold' }}>বাতিল</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* INPUT */}
         <View style={{
           flexDirection: 'row',
@@ -411,33 +468,75 @@ export default function ChatScreen({ baby, onBack }) {
           paddingHorizontal: 16,
           backgroundColor: 'white',
           borderTopWidth: 1,
-          borderTopColor: '#E0E0E0'
+          borderTopColor: '#E0E0E0',
+          alignItems: 'flex-end',
         }}>
           <TextInput
             value={inputText}
             onChangeText={setInputText}
-            placeholder="মেসেজ লিখুন..."
+            placeholder={isListening ? 'শুনছি...' : 'মেসেজ লিখুন বা 🎤 চাপুন...'}
             placeholderTextColor="#999"
             style={{
               flex: 1,
-              backgroundColor: '#F5F5F5',
+              backgroundColor: isListening ? '#FFF3E0' : '#F5F5F5',
               borderRadius: 24,
               paddingHorizontal: 16,
               paddingVertical: 12,
               fontSize: 16,
-              marginRight: 12,
-              maxHeight: 100
+              marginRight: 8,
+              maxHeight: 100,
+              borderWidth: isListening ? 1.5 : 0,
+              borderColor: isListening ? '#FF9800' : 'transparent',
             }}
             multiline
-            editable={!loading}
+            editable={!loading && !isListening}
             onSubmitEditing={() => handleSend()}
           />
 
+          {/* MICROPHONE BUTTON — shows when input is empty and not loading */}
+          {voiceAvailable && !inputText.trim() && !loading && !isListening && (
+            <TouchableOpacity
+              onPress={startListening}
+              style={{
+                backgroundColor: '#FFF3E0',
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 8,
+                borderWidth: 1.5,
+                borderColor: '#FF9800',
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>🎤</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* STOP RECORDING BUTTON — shows when listening */}
+          {isListening && (
+            <TouchableOpacity
+              onPress={stopListening}
+              style={{
+                backgroundColor: '#D32F2F',
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 8,
+              }}
+            >
+              <Text style={{ fontSize: 18, color: 'white' }}>⏹</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* SEND BUTTON */}
           <TouchableOpacity
             onPress={() => handleSend()}
-            disabled={loading || !inputText.trim()}
+            disabled={loading || !inputText.trim() || isListening}
             style={{
-              backgroundColor: loading || !inputText.trim() ? '#BDBDBD' : COLORS.primary,
+              backgroundColor: loading || !inputText.trim() || isListening ? '#BDBDBD' : COLORS.primary,
               width: 48,
               height: 48,
               borderRadius: 24,
