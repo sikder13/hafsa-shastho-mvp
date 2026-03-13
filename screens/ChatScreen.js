@@ -492,9 +492,8 @@ export default function ChatScreen({ baby, onBack }) {
             editable={!loading && !isListening}
             onSubmitEditing={() => handleSend()}
           />
-
-          {/* MICROPHONE BUTTON — shows when input is empty and not loading */}
-          {voiceAvailable && !inputText.trim() && !loading && !isListening && (
+{/* MICROPHONE BUTTON — shows when input is empty and not loading */}
+{!inputText.trim() && !loading && !isListening && (
             <TouchableOpacity
               onPress={startListening}
               style={{
