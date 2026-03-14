@@ -7,6 +7,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STORAGE_KEYS } from '../utils/constants';
 import { safeJSONParse } from '../utils/helpers';
+import {
+    syncProfile, syncBaby, syncDailyLog, syncMotherLog,
+    syncGrowthRecord, syncVaccineRecord, syncAIInteraction,
+    processSyncQueue, getCurrentUserId
+  } from '../services/supabaseService';
 
 // Create the context
 const AppContext = createContext(null);
@@ -55,6 +60,7 @@ export function AppProvider({ children }) {
 
   // App state
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [settings, setSettings] = useState({
     language: 'bn',
     notifications: {
@@ -72,6 +78,8 @@ export function AppProvider({ children }) {
 
   useEffect(() => {
     loadAllData();
+    // Try processing queued syncs on app start
+    processSyncQueue().catch(e => console.log('Queue process error:', e));
   }, []);
 // Reset todayMotherLog when date changes (midnight reset)
 useEffect(() => {
@@ -165,6 +173,8 @@ useEffect(() => {
     try {
       setBaby(newProfile);
       await AsyncStorage.setItem(STORAGE_KEYS.babyProfile, JSON.stringify(newProfile));
+      // Background sync to Supabase (non-blocking)
+      syncBaby(newProfile).catch(e => console.log('Baby sync bg:', e.message));
     } catch (error) {
       console.error('Error saving baby profile:', error);
     }
@@ -176,6 +186,8 @@ useEffect(() => {
     try {
       setMotherProfile(newProfile);
       await AsyncStorage.setItem(STORAGE_KEYS.motherProfile, JSON.stringify(newProfile));
+      // Background sync to Supabase (non-blocking)
+      syncProfile(newProfile).catch(e => console.log('Profile sync bg:', e.message));
     } catch (error) {
       console.error('Error saving mother profile:', error);
     }
@@ -202,8 +214,11 @@ useEffect(() => {
     setLogs(updatedLogs);
     await AsyncStorage.setItem(STORAGE_KEYS.dailyLogs(baby.id), JSON.stringify(updatedLogs));
 
+    // Background sync to Supabase (non-blocking)
+    syncDailyLog(newLog, baby.id, baby.birth_date).catch(e => console.log('Log sync bg:', e.message));
+
     return newLog;
-  }, [baby?.id, logs]);
+  }, [baby?.id, baby?.birth_date, logs]);
 
   // --- Mother Daily Log ---
 
@@ -219,31 +234,43 @@ useEffect(() => {
       const updatedHistory = [
         updatedLog,
         ...motherLogHistory.filter(log => log.date !== today)
-      ].slice(0, 30); // Keep last 30 days
+      ].slice(0, 30);
 
       setMotherLogHistory(updatedHistory);
       await AsyncStorage.setItem(STORAGE_KEYS.motherLogsHistory, JSON.stringify(updatedHistory));
 
+      // Background sync to Supabase (non-blocking)
+      // Calculate postpartum day from baby's birth date
+      const postpartumDay = baby?.birth_date
+        ? Math.floor((new Date() - new Date(baby.birth_date)) / (1000 * 60 * 60 * 24))
+        : 0;
+      syncMotherLog(updatedLog, postpartumDay).catch(e => console.log('Mother log sync bg:', e.message));
+
     } catch (error) {
       console.error('Error saving mother log:', error);
     }
-  }, [todayMotherLog, motherLogHistory]);
+  }, [todayMotherLog, motherLogHistory, baby?.birth_date]);
 
   // --- Vaccine Status ---
 
   const updateVaccineStatus = useCallback(async (vaccineId, completed, completedDate = null) => {
     if (!baby?.id) return;
 
+    const vaccineData = {
+      completed,
+      completedDate: completedDate || new Date().toISOString()
+    };
+
     const updatedStatus = {
       ...vaccineStatus,
-      [vaccineId]: {
-        completed,
-        completedDate: completedDate || new Date().toISOString()
-      }
+      [vaccineId]: vaccineData
     };
 
     setVaccineStatus(updatedStatus);
     await AsyncStorage.setItem(STORAGE_KEYS.vaccineStatus(baby.id), JSON.stringify(updatedStatus));
+
+    // Background sync to Supabase (non-blocking)
+    syncVaccineRecord(vaccineId, vaccineData, baby.id).catch(e => console.log('Vaccine sync bg:', e.message));
   }, [baby?.id, vaccineStatus]);
 
   // --- Growth Measurements ---
@@ -261,6 +288,9 @@ useEffect(() => {
 
     setGrowthMeasurements(updated);
     await AsyncStorage.setItem(STORAGE_KEYS.growthMeasurements(baby.id), JSON.stringify(updated));
+
+    // Background sync to Supabase (non-blocking)
+    syncGrowthRecord(newMeasurement, baby.id).catch(e => console.log('Growth sync bg:', e.message));
 
     return newMeasurement;
   }, [baby?.id, growthMeasurements]);
@@ -332,6 +362,10 @@ useEffect(() => {
     setGrowthMeasurements,
     updateSettings,
     resetAllData,
+
+    // Auth state
+    isAuthenticated,
+    setIsAuthenticated,
 
     // Reload (useful after sync or import)
     reloadAllData: loadAllData,

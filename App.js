@@ -2,18 +2,31 @@
 // Root component — AppProvider + NavigationContainer
 // All navigation is handled by React Navigation now
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { AppProvider, useApp } from './context/AppContext';
 import { COLORS } from './utils/constants';
 import { StatusBar } from 'expo-status-bar';
-
 import OnboardingScreen from './screens/OnboardingScreen';
 import TabNavigator from './navigation/TabNavigator';
+import { processSyncQueue, onAuthStateChange } from './services/supabaseService';
 
 function AppContent() {
-  const { baby, saveBabyProfile, saveMotherProfile, loading } = useApp();
+  const { baby, saveBabyProfile, saveMotherProfile, loading, setIsAuthenticated } = useApp();
+
+  // Listen for auth state changes & process sync queue
+  useEffect(() => {
+    const unsubscribe = onAuthStateChange((event, session) => {
+      setIsAuthenticated(!!session?.user);
+      if (event === 'SIGNED_IN' && session?.user) {
+        // User just signed in — process any queued syncs
+        processSyncQueue().catch(e => console.log('Queue on signin:', e.message));
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   if (loading) {
     return (
