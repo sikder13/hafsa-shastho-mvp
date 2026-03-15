@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDateInput, calculateAge, toBengaliNumber, getRecoveryStage } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
+import { supabase } from '../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TOTAL_STEPS = 4; // Welcome, Baby, Mother, Personalized Welcome
@@ -130,9 +131,13 @@ export default function OnboardingScreen({ onComplete }) {
       const [day, month, year] = birthDate.split('-');
       const formattedDate = `${year}-${month}-${day}`;
 
+      // Get real user ID from Supabase auth
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id || 'local-' + Date.now();
+
       const babyData = {
         id: 'baby-' + Date.now(),
-        user_id: 'user-' + Date.now(),
+        user_id: userId,
         name: babyName.trim(),
         birth_date: formattedDate,
         gender: gender,
