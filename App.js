@@ -14,17 +14,14 @@ import TabNavigator from './navigation/TabNavigator';
 import { supabase } from './supabaseClient';
 import {
   processSyncQueue,
-  syncProfile,
-  syncBaby,
   createTrialSubscription,
   recordConsent,
-  hydrateFromCloud
 } from './services/supabaseService';
 
 function AppContent() {
   const {
     baby, saveBabyProfile, saveMotherProfile, loading,
-    isAuthenticated, setIsAuthenticated, reloadAllData
+    setIsAuthenticated, hydrateFromSupabase
   } = useApp();
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -53,12 +50,8 @@ function AppContent() {
         if (event === 'SIGNED_IN' && newSession?.user) {
           console.log('✅ User signed in:', newSession.user.id);
 
-          // Try to hydrate existing data from cloud
-          const hydration = await hydrateFromCloud();
-          if (hydration.success && hydration.data?.profile) {
-            // Returning user — reload local data
-            await reloadAllData();
-          }
+          // Try to hydrate existing data from cloud (returning user on new device)
+          hydrateFromSupabase().catch(e => console.log('Hydration on signin:', e.message));
 
           // Process any queued syncs
           processSyncQueue().catch(e => console.log('Queue on signin:', e.message));

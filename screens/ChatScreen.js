@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
 import { useVoiceInput } from '../services/voiceService';
+import { syncDailyLog } from '../services/supabaseService';
 
 export default function ChatScreen({ baby, onBack }) {
   const {
@@ -190,7 +191,19 @@ export default function ChatScreen({ baby, onBack }) {
      // Sync auto-logged data to AppContext so HomeScreen and BabyHub see it
      if (autoLogResult.logged && autoLogResult.updatedLogs) {
       setGlobalLogs(autoLogResult.updatedLogs);
-    } 
+
+      // Sync each auto-logged activity to Supabase
+      for (const activity of autoLogResult.activities) {
+        const logEntry = {
+          id: Date.now() + Math.random(),
+          timestamp: new Date().toISOString(),
+          type: activity.type,
+          source: 'auto_chat',
+          autoLogged: true,
+        };
+        syncDailyLog(logEntry, baby.id, baby.birth_date).catch(e => console.log('Auto-log sync:', e.message));
+      }
+    }
 
       // Try streaming first
       let streamWorked = false;

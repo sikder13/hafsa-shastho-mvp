@@ -16,6 +16,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SYNC_QUEUE_KEY = 'supabase_sync_queue';
 
+// Cache the Supabase baby UUID to avoid repeated lookups
+let _cachedBabyId = null;
+
+/**
+ * Get the real Supabase UUID for the user's baby
+ * Local baby IDs are like 'baby-1710000000' but Supabase uses UUIDs
+ */
+async function getSupabaseBabyId(userId) {
+  if (_cachedBabyId) return _cachedBabyId;
+
+  try {
+    const { data, error } = await supabase
+      .from('babies')
+      .select('id')
+      .eq('user_id', userId)
+      .limit(1)
+      .single();
+
+    if (error || !data) return null;
+    _cachedBabyId = data.id;
+    return data.id;
+  } catch (e) {
+    console.log('Baby ID lookup failed:', e.message);
+    return null;
+  }
+}
+
 // ============================================================
 // AUTH HELPERS
 // ============================================================
@@ -148,38 +175,42 @@ export async function syncBaby(babyData) {
  * Called after every addLog or auto-log
  */
 export async function syncDailyLog(logEntry, babyId, babyBirthDate) {
-  const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Not authenticated' };
-
-  try {
-    // Calculate baby age in days
-    const birthDate = new Date(babyBirthDate);
-    const logDate = new Date(logEntry.timestamp);
-    const ageDays = Math.floor((logDate - birthDate) / (1000 * 60 * 60 * 24));
-
-    const { error } = await supabase
-      .from('daily_logs')
-      .insert({
-        baby_id: babyId,
-        user_id: userId,
-        log_type: logEntry.type,
-        timestamp: logEntry.timestamp,
-        source: logEntry.source || (logEntry.autoLogged ? 'auto_chat' : 'manual'),
-        auto_logged: logEntry.autoLogged || false,
-        baby_age_days: ageDays,
-        details: logEntry.details || null,
-        notes: logEntry.notes || null,
-        synced_from_local: true,
-      });
-
-    if (error) throw error;
-    return { success: true };
-  } catch (e) {
-    console.log('Daily log sync failed:', e.message);
-    await queueSync('daily_log', { logEntry, babyId, babyBirthDate });
-    return { success: false, error: e.message };
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+  
+    try {
+      // Get the real Supabase baby UUID (local ID might be 'baby-xxxxx')
+      const realBabyId = await getSupabaseBabyId(userId);
+      if (!realBabyId) return { success: false, error: 'No baby in Supabase' };
+  
+      // Calculate baby age in days
+      const birthDate = new Date(babyBirthDate);
+      const logDate = new Date(logEntry.timestamp);
+      const ageDays = Math.floor((logDate - birthDate) / (1000 * 60 * 60 * 24));
+  
+      const { error } = await supabase
+        .from('daily_logs')
+        .insert({
+          baby_id: realBabyId,
+          user_id: userId,
+          log_type: logEntry.type,
+          timestamp: logEntry.timestamp,
+          source: logEntry.source || (logEntry.autoLogged ? 'auto_chat' : 'manual'),
+          auto_logged: logEntry.autoLogged || false,
+          baby_age_days: ageDays,
+          details: logEntry.details || null,
+          notes: logEntry.notes || null,
+          synced_from_local: true,
+        });
+  
+      if (error) throw error;
+      return { success: true };
+    } catch (e) {
+      console.log('Daily log sync failed:', e.message);
+      await queueSync('daily_log', { logEntry, babyId, babyBirthDate });
+      return { success: false, error: e.message };
+    }
   }
-}
 
 // ============================================================
 // MOTHER DAILY LOG SYNC
@@ -232,32 +263,34 @@ export async function syncMotherLog(logData, postpartumDay) {
  * Sync a growth measurement to Supabase
  */
 export async function syncGrowthRecord(measurement, babyId) {
-  const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Not authenticated' };
-
-  try {
-    const { error } = await supabase
-      .from('growth_records')
-      .insert({
-        baby_id: babyId,
-        user_id: userId,
-        weight_kg: measurement.weight,
-        height_cm: measurement.height || null,
-        age_months: measurement.ageMonths || null,
-        percentile: measurement.percentile || null,
-        recorded_date: measurement.date ? new Date(measurement.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        notes: measurement.notes || null,
-      });
-
-    if (error) throw error;
-    return { success: true };
-  } catch (e) {
-    console.log('Growth sync failed:', e.message);
-    await queueSync('growth', { measurement, babyId });
-    return { success: false, error: e.message };
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+  
+    try {
+      const realBabyId = await getSupabaseBabyId(userId);
+      if (!realBabyId) return { success: false, error: 'No baby in Supabase' };
+  
+      const { error } = await supabase
+        .from('growth_records')
+        .insert({
+          baby_id: realBabyId,
+          user_id: userId,
+          weight_kg: measurement.weight,
+          height_cm: measurement.height || null,
+          age_months: measurement.ageMonths || null,
+          percentile: measurement.percentile || null,
+          recorded_date: measurement.date ? new Date(measurement.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          notes: measurement.notes || null,
+        });
+  
+      if (error) throw error;
+      return { success: true };
+    } catch (e) {
+      console.log('Growth sync failed:', e.message);
+      await queueSync('growth', { measurement, babyId });
+      return { success: false, error: e.message };
+    }
   }
-}
-
 // ============================================================
 // VACCINE RECORDS SYNC
 // ============================================================
@@ -266,29 +299,31 @@ export async function syncGrowthRecord(measurement, babyId) {
  * Sync vaccine status to Supabase
  */
 export async function syncVaccineRecord(vaccineId, vaccineData, babyId) {
-  const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Not authenticated' };
-
-  try {
-    const { error } = await supabase
-      .from('vaccine_records')
-      .upsert({
-        baby_id: babyId,
-        user_id: userId,
-        vaccine_name: vaccineId,
-        status: vaccineData.completed ? 'completed' : 'pending',
-        completed_date: vaccineData.completedDate ? new Date(vaccineData.completedDate).toISOString().split('T')[0] : null,
-      }, { onConflict: 'id' });
-
-    if (error) throw error;
-    return { success: true };
-  } catch (e) {
-    console.log('Vaccine sync failed:', e.message);
-    await queueSync('vaccine', { vaccineId, vaccineData, babyId });
-    return { success: false, error: e.message };
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+  
+    try {
+      const realBabyId = await getSupabaseBabyId(userId);
+      if (!realBabyId) return { success: false, error: 'No baby in Supabase' };
+  
+      const { error } = await supabase
+        .from('vaccine_records')
+        .upsert({
+          baby_id: realBabyId,
+          user_id: userId,
+          vaccine_name: vaccineId,
+          status: vaccineData.completed ? 'completed' : 'pending',
+          completed_date: vaccineData.completedDate ? new Date(vaccineData.completedDate).toISOString().split('T')[0] : null,
+        }, { onConflict: 'id' });
+  
+      if (error) throw error;
+      return { success: true };
+    } catch (e) {
+      console.log('Vaccine sync failed:', e.message);
+      await queueSync('vaccine', { vaccineId, vaccineData, babyId });
+      return { success: false, error: e.message };
+    }
   }
-}
-
 // ============================================================
 // AI INTERACTIONS SYNC (RLHF)
 // ============================================================

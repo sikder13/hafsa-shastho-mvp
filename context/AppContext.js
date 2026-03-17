@@ -10,7 +10,7 @@ import { safeJSONParse } from '../utils/helpers';
 import {
     syncProfile, syncBaby, syncDailyLog, syncMotherLog,
     syncGrowthRecord, syncVaccineRecord, syncAIInteraction,
-    processSyncQueue, getCurrentUserId
+    processSyncQueue, getCurrentUserId, hydrateFromCloud
   } from '../services/supabaseService';
 
 // Create the context
@@ -307,6 +307,162 @@ useEffect(() => {
     }
   }, [settings]);
 
+  // --- Cloud Hydration (pull Supabase data into local) ---
+
+  const hydrateFromSupabase = useCallback(async () => {
+    try {
+      console.log('☁️ Starting cloud hydration...');
+      const result = await hydrateFromCloud();
+
+      if (!result.success || !result.data) {
+        console.log('☁️ No cloud data to hydrate');
+        return false;
+      }
+
+      const { profile, babies, motherLogs, subscription, dailyLogs, growthRecords, vaccineRecords } = result.data;
+      let hydrated = false;
+
+      // Hydrate mother profile
+      if (profile && profile.name) {
+        const motherData = {
+          name: profile.name,
+          phone: profile.phone,
+          email: profile.email,
+          division: profile.division,
+          district: profile.district,
+          delivery_type: profile.delivery_type || 'normal',
+          is_first_baby: profile.is_first_baby !== false,
+          concerns: profile.concerns || [],
+          language: profile.language || 'bn',
+        };
+        setMotherProfile(motherData);
+        await AsyncStorage.setItem(STORAGE_KEYS.motherProfile, JSON.stringify(motherData));
+        hydrated = true;
+        console.log('☁️ Hydrated mother profile');
+      }
+
+      // Hydrate baby profile
+      if (babies && babies.length > 0) {
+        const cloudBaby = babies[0]; // First baby
+        const babyData = {
+          id: cloudBaby.id,
+          user_id: cloudBaby.user_id,
+          name: cloudBaby.name,
+          birth_date: cloudBaby.birth_date,
+          gender: cloudBaby.gender,
+          created_at: cloudBaby.created_at,
+        };
+        setBaby(babyData);
+        await AsyncStorage.setItem(STORAGE_KEYS.babyProfile, JSON.stringify(babyData));
+        hydrated = true;
+        console.log('☁️ Hydrated baby profile:', babyData.name);
+
+        // Hydrate daily logs
+        if (dailyLogs && dailyLogs.length > 0) {
+          const logsByType = { feed: [], sleep: [], diaper: [], food: [] };
+          for (const log of dailyLogs) {
+            const type = log.log_type;
+            if (logsByType[type]) {
+              logsByType[type].push({
+                id: log.id,
+                timestamp: log.timestamp,
+                type: type,
+                source: log.source || 'manual',
+                autoLogged: log.auto_logged || false,
+                details: log.details,
+                notes: log.notes,
+              });
+            }
+          }
+          setLogs(logsByType);
+          await AsyncStorage.setItem(STORAGE_KEYS.dailyLogs(cloudBaby.id), JSON.stringify(logsByType));
+          console.log('☁️ Hydrated daily logs:', dailyLogs.length, 'entries');
+        }
+
+        // Hydrate growth records
+        if (growthRecords && growthRecords.length > 0) {
+          const measurements = growthRecords.map(r => ({
+            id: r.id,
+            weight: parseFloat(r.weight_kg),
+            height: r.height_cm ? parseFloat(r.height_cm) : null,
+            date: r.recorded_date,
+            ageMonths: r.age_months,
+          }));
+          setGrowthMeasurements(measurements);
+          await AsyncStorage.setItem(STORAGE_KEYS.growthMeasurements(cloudBaby.id), JSON.stringify(measurements));
+          console.log('☁️ Hydrated growth records:', measurements.length);
+        }
+
+        // Hydrate vaccine records
+        if (vaccineRecords && vaccineRecords.length > 0) {
+          const vaccineMap = {};
+          for (const v of vaccineRecords) {
+            vaccineMap[v.vaccine_name] = {
+              completed: v.status === 'completed',
+              completedDate: v.completed_date,
+            };
+          }
+          setVaccineStatus(vaccineMap);
+          await AsyncStorage.setItem(STORAGE_KEYS.vaccineStatus(cloudBaby.id), JSON.stringify(vaccineMap));
+          console.log('☁️ Hydrated vaccine records:', vaccineRecords.length);
+        }
+      }
+
+      // Hydrate mother daily logs
+      if (motherLogs && motherLogs.length > 0) {
+        const today = new Date().toISOString().split('T')[0];
+        const todayLog = motherLogs.find(l => l.date === today);
+
+        if (todayLog) {
+          const formattedLog = {
+            date: todayLog.date,
+            mood: todayLog.mood,
+            bleeding: todayLog.bleeding,
+            pain: todayLog.pain,
+            breastPain: todayLog.breast_pain,
+            csectionHealing: todayLog.csection_healing,
+            sleepHours: todayLog.sleep_hours,
+            waterIntake: todayLog.water_intake || 0,
+            mealsEaten: todayLog.meals_eaten || 0,
+            breastfeedingSessions: todayLog.breastfeeding_sessions || 0,
+            hadHelp: todayLog.had_help,
+            completedAt: todayLog.completed_at,
+          };
+          setTodayMotherLog(formattedLog);
+          await AsyncStorage.setItem(STORAGE_KEYS.motherLog(today), JSON.stringify(formattedLog));
+        }
+
+        // History
+        const history = motherLogs.map(l => ({
+          date: l.date,
+          mood: l.mood,
+          bleeding: l.bleeding,
+          pain: l.pain,
+          breastPain: l.breast_pain,
+          csectionHealing: l.csection_healing,
+          sleepHours: l.sleep_hours,
+          waterIntake: l.water_intake || 0,
+          mealsEaten: l.meals_eaten || 0,
+          breastfeedingSessions: l.breastfeeding_sessions || 0,
+          hadHelp: l.had_help,
+          completedAt: l.completed_at,
+        }));
+        setMotherLogHistory(history);
+        await AsyncStorage.setItem(STORAGE_KEYS.motherLogsHistory, JSON.stringify(history));
+        console.log('☁️ Hydrated mother logs:', motherLogs.length, 'days');
+      }
+
+      if (hydrated) {
+        console.log('☁️ Cloud hydration complete!');
+      }
+      return hydrated;
+
+    } catch (error) {
+      console.error('☁️ Hydration error:', error);
+      return false;
+    }
+  }, []);
+
   // --- Reset (for development) ---
 
   const resetAllData = useCallback(async () => {
@@ -366,6 +522,8 @@ useEffect(() => {
     // Auth state
     isAuthenticated,
     setIsAuthenticated,
+    // Cloud sync
+    hydrateFromSupabase,
 
     // Reload (useful after sync or import)
     reloadAllData: loadAllData,

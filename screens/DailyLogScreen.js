@@ -14,6 +14,7 @@ import { toBengaliNumber, calculateAgeInMonths, countToday, formatTimeBengali } 
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 import { useApp } from '../context/AppContext';
 import { getLogFeedback } from '../services/intelligenceService';
+import { syncDailyLog } from '../services/supabaseService';
 
 export default function DailyLogScreen({ baby, onBack }) {
   const [logs, setLogs] = useState({
@@ -64,7 +65,7 @@ export default function DailyLogScreen({ baby, onBack }) {
     }
   };
 
-  const { setLogs: setGlobalLogs } = useApp();
+  const { setLogs: setGlobalLogs, baby: globalBaby } = useApp();
 
   const saveLogs = async (newLogs) => {
     try {
@@ -96,6 +97,9 @@ export default function DailyLogScreen({ baby, onBack }) {
 
     setLogs(updatedLogs);
     await saveLogs(updatedLogs);
+
+    // Background sync to Supabase
+    syncDailyLog(newLog, globalBaby?.id, globalBaby?.birth_date).catch(e => console.log('Log sync:', e.message));
 
     // Show toast
     const typeName = TEXT.logTypes[type] || type;
