@@ -19,10 +19,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDateInput, calculateAge, toBengaliNumber, getRecoveryStage } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
+import { BD_DIVISIONS, BD_DISTRICTS, BD_ABROAD } from '../data/bdLocations';
 import { supabase } from '../supabaseClient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const TOTAL_STEPS = 4; // Welcome, Baby, Mother, Personalized Welcome
+const TOTAL_STEPS = 5; // Welcome, Baby, Mother, Location, Personalized Welcome
 
 export default function OnboardingScreen({ onComplete }) {
   // Current step
@@ -38,6 +39,10 @@ export default function OnboardingScreen({ onComplete }) {
   const [deliveryType, setDeliveryType] = useState('');
   const [isFirstBaby, setIsFirstBaby] = useState(null);
   const [currentConcerns, setCurrentConcerns] = useState([]);
+  // Location data
+  const [division, setDivision] = useState('');
+  const [district, setDistrict] = useState('');
+  const [isAbroad, setIsAbroad] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -147,9 +152,11 @@ export default function OnboardingScreen({ onComplete }) {
       const motherData = {
         name: motherName.trim(),
         delivery_type: deliveryType,
-        delivery_date: formattedDate, // Same as baby's birth date
+        delivery_date: formattedDate,
         is_first_baby: isFirstBaby,
         concerns: currentConcerns,
+        division: division || null,
+        district: district || null,
         created_at: new Date().toISOString()
       };
 
@@ -262,7 +269,7 @@ export default function OnboardingScreen({ onComplete }) {
               flexDirection: 'row',
               gap: 8,
             }}>
-              {[1, 2].map((step) => (
+              {[1, 2, 3].map((step) => (
                 <View
                   key={step}
                   style={{
@@ -275,7 +282,7 @@ export default function OnboardingScreen({ onComplete }) {
               ))}
             </View>
             <Text style={{ fontSize: 13, color: COLORS.gray, marginTop: 8 }}>
-              ধাপ {toBengaliNumber(currentStep)}/২
+              ধাপ {toBengaliNumber(currentStep)}/৩
             </Text>
           </View>
         )}
@@ -676,9 +683,195 @@ export default function OnboardingScreen({ onComplete }) {
                 </View>
               </View>
             )}
+        {/* ============ STEP 3: LOCATION ============ */}
+        {currentStep === 3 && (
+              <View>
+                <Text style={{
+                  fontSize: 26,
+                  fontWeight: 'bold',
+                  color: COLORS.dark,
+                  marginBottom: 8,
+                  marginTop: 16
+                }}>
+                  📍 কোথায় থাকেন?
+                </Text>
+                <Text style={{
+                  fontSize: 15,
+                  color: COLORS.gray,
+                  marginBottom: 28,
+                  lineHeight: 22
+                }}>
+                  আপনার এলাকার মায়েদের জন্য আরও ভালো সেবা দিতে এটা দরকার
+                </Text>
 
-            {/* ============ STEP 3: PERSONALIZED WELCOME ============ */}
-            {currentStep === 3 && (
+                {/* Abroad toggle */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setIsAbroad(!isAbroad);
+                    setDivision('');
+                    setDistrict('');
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 14,
+                    borderRadius: 12,
+                    borderWidth: 2,
+                    borderColor: isAbroad ? COLORS.primary : '#E0E0E0',
+                    backgroundColor: isAbroad ? COLORS.primaryLight : '#FAFAFA',
+                    marginBottom: 24,
+                  }}
+                >
+                  <Text style={{ fontSize: 20, marginRight: 10 }}>🌍</Text>
+                  <Text style={{
+                    fontSize: 16,
+                    color: isAbroad ? COLORS.primary : COLORS.gray,
+                    fontWeight: isAbroad ? 'bold' : 'normal',
+                  }}>
+                    বাংলাদেশের বাইরে থাকি
+                  </Text>
+                </TouchableOpacity>
+
+                {!isAbroad ? (
+                  <>
+                    {/* Division */}
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.dark, marginBottom: 12 }}>
+                      বিভাগ
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
+                      {BD_DIVISIONS.map(div => (
+                        <TouchableOpacity
+                          key={div}
+                          onPress={() => {
+                            setDivision(div);
+                            setDistrict(''); // Reset district when division changes
+                          }}
+                          style={{
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            borderRadius: 20,
+                            borderWidth: 2,
+                            borderColor: division === div ? COLORS.primary : '#E0E0E0',
+                            backgroundColor: division === div ? COLORS.primaryLight : '#FAFAFA',
+                          }}
+                        >
+                          <Text style={{
+                            fontSize: 15,
+                            color: division === div ? COLORS.primary : COLORS.gray,
+                            fontWeight: division === div ? 'bold' : 'normal',
+                          }}>
+                            {div}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* District — shows after division selected */}
+                    {division && BD_DISTRICTS[division] && (
+                      <>
+                        <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.dark, marginBottom: 12 }}>
+                          জেলা
+                        </Text>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
+                          {BD_DISTRICTS[division].map(dist => (
+                            <TouchableOpacity
+                              key={dist}
+                              onPress={() => setDistrict(dist)}
+                              style={{
+                                paddingHorizontal: 16,
+                                paddingVertical: 10,
+                                borderRadius: 20,
+                                borderWidth: 2,
+                                borderColor: district === dist ? COLORS.primary : '#E0E0E0',
+                                backgroundColor: district === dist ? COLORS.primaryLight : '#FAFAFA',
+                              }}
+                            >
+                              <Text style={{
+                                fontSize: 14,
+                                color: district === dist ? COLORS.primary : COLORS.gray,
+                                fontWeight: district === dist ? 'bold' : 'normal',
+                              }}>
+                                {dist}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {/* Abroad country */}
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: COLORS.dark, marginBottom: 12 }}>
+                      কোন দেশে?
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
+                      {BD_ABROAD.map(country => (
+                        <TouchableOpacity
+                          key={country}
+                          onPress={() => setDivision(country)}
+                          style={{
+                            paddingHorizontal: 16,
+                            paddingVertical: 10,
+                            borderRadius: 20,
+                            borderWidth: 2,
+                            borderColor: division === country ? COLORS.primary : '#E0E0E0',
+                            backgroundColor: division === country ? COLORS.primaryLight : '#FAFAFA',
+                          }}
+                        >
+                          <Text style={{
+                            fontSize: 15,
+                            color: division === country ? COLORS.primary : COLORS.gray,
+                            fontWeight: division === country ? 'bold' : 'normal',
+                          }}>
+                            {country}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* Buttons */}
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+                  <TouchableOpacity
+                    onPress={goBack}
+                    style={{
+                      flex: 1,
+                      padding: 16,
+                      borderRadius: 12,
+                      borderWidth: 1.5,
+                      borderColor: '#E0E0E0',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <Text style={{ color: COLORS.gray, fontSize: 16, fontWeight: '600' }}>
+                      ← আগে
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={goNext}
+                    style={{
+                      flex: 2,
+                      backgroundColor: COLORS.primary,
+                      padding: 16,
+                      borderRadius: 12,
+                      alignItems: 'center'
+                    }}
+                  >
+                    <Text style={{ color: 'white', fontSize: 18, fontWeight: 'bold' }}>
+                      {division ? 'পরবর্তী →' : 'এড়িয়ে যান →'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+       
+
+        {/* ============ STEP 4: PERSONALIZED WELCOME ============ */}
+        {currentStep === 4 && (
               <View style={{ flex: 1 }}>
                 {/* Hafsa's Welcome Card */}
                 <View style={{
