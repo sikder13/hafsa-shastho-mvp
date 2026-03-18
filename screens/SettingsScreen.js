@@ -15,15 +15,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { formatDateInput, calculateAge, toBengaliNumber } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
+import { supabase } from '../supabaseClient';
 
 export default function SettingsScreen({ onBack }) {
-  const {
-    baby,
-    motherProfile,
-    saveBabyProfile,
-    saveMotherProfile,
-    resetAllData
-  } = useApp();
+    const {
+        baby,
+        motherProfile,
+        saveBabyProfile,
+        saveMotherProfile,
+        resetAllData,
+        setIsAuthenticated
+      } = useApp();
 
   const [editingBaby, setEditingBaby] = useState(false);
   const [editingMother, setEditingMother] = useState(false);
@@ -91,6 +93,90 @@ export default function SettingsScreen({ onBack }) {
     Alert.alert('সফল!', 'মায়ের তথ্য আপডেট হয়েছে');
   };
 
+  // Logout — clears local session, keeps cloud data
+  const handleLogout = () => {
+    Alert.alert(
+      'লগআউট',
+      'লগআউট করলে এই ডিভাইসের ডেটা মুছে যাবে, কিন্তু ক্লাউডে আপনার সব তথ্য সুরক্ষিত থাকবে। আবার লগইন করলে সব ফিরে আসবে।',
+      [
+        { text: 'না', style: 'cancel' },
+        {
+          text: 'লগআউট করুন',
+          onPress: async () => {
+            try {
+              await supabase.auth.signOut();
+              await resetAllData();
+              setIsAuthenticated(false);
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('ত্রুটি', 'লগআউট করতে সমস্যা হয়েছে।');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Delete account — removes EVERYTHING from local + Supabase (PDPO 2025)
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'সত্যিই চলে যাবেন? 💚',
+      `${motherProfile?.name || 'আপু'}, আপনার এবং ${baby?.name || 'শিশুর'} সব তথ্য — প্রতিদিনের লগ, চেক-ইন, হাফসা আপার সাথে কথা — সব চিরতরে মুছে যাবে।\n\nযদি কোনো সমস্যা থাকে, আমরা সাহায্য করতে চাই। hafsa.shastho@gmail.com এ লিখুন।`,
+
+
+      [
+        { text: 'না, রাখুন', style: 'cancel' },
+        {
+          text: 'হ্যাঁ, সব মুছুন',
+          style: 'destructive',
+          onPress: () => {
+            // Double confirmation for destructive action
+            Alert.alert(
+              '🔴 শেষ সুযোগ',
+              'আপনি কি নিশ্চিত? এই কাজটি ফিরিয়ে আনা যাবে না।',
+              [
+                { text: 'না', style: 'cancel' },
+                {
+                  text: 'চিরতরে মুছুন',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      // Delete from Supabase (CASCADE will remove all related data)
+                      const { data: { user } } = await supabase.auth.getUser();
+                      if (user) {
+                        // Delete profile — CASCADE removes babies, logs, etc.
+                        await supabase.from('profiles').delete().eq('id', user.id);
+                        // Delete baby and related data
+                        await supabase.from('babies').delete().eq('user_id', user.id);
+                        await supabase.from('mother_daily_logs').delete().eq('user_id', user.id);
+                        await supabase.from('ai_interactions').delete().eq('user_id', user.id);
+                        await supabase.from('epds_assessments').delete().eq('user_id', user.id);
+                        await supabase.from('user_consents').delete().eq('user_id', user.id);
+                        await supabase.from('subscriptions').delete().eq('user_id', user.id);
+                        await supabase.from('ai_usage').delete().eq('user_id', user.id);
+                      }
+
+                      // Sign out
+                      await supabase.auth.signOut();
+                      // Clear local
+                      await resetAllData();
+                      setIsAuthenticated(false);
+
+                      Alert.alert('সম্পন্ন', 'আপনার অ্যাকাউন্ট মুছে ফেলা হয়েছে।');
+                    } catch (error) {
+                      console.error('Delete account error:', error);
+                      Alert.alert('ত্রুটি', 'অ্যাকাউন্ট মুছতে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
+  };
+  
   const handleResetApp = () => {
     Alert.alert(
       '⚠️ সব ডেটা মুছে ফেলুন',
@@ -444,6 +530,42 @@ export default function SettingsScreen({ onBack }) {
           </Text>
           <Text style={{ fontSize: 13, color: '#C62828' }}>
             এই কাজটি ফিরিয়ে আনা যাবে না। সব তথ্য মুছে যাবে।
+          </Text>
+        </TouchableOpacity>
+
+        {/* LOGOUT */}
+        <TouchableOpacity
+          onPress={handleLogout}
+          style={{
+            backgroundColor: '#FFF3E0',
+            padding: 16,
+            borderRadius: 12,
+            alignItems: 'center',
+            marginTop: 12,
+            borderWidth: 1.5,
+            borderColor: '#FF9800',
+          }}
+        >
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#E65100' }}>
+            🚪 লগআউট
+          </Text>
+          <Text style={{ fontSize: 12, color: '#FF9800', marginTop: 4 }}>
+            ক্লাউডে ডেটা সুরক্ষিত থাকবে
+          </Text>
+        </TouchableOpacity>
+
+        {/* DELETE ACCOUNT — intentionally subtle, required by App Store */}
+        <TouchableOpacity
+          onPress={handleDeleteAccount}
+          style={{
+            alignItems: 'center',
+            marginTop: 40,
+            marginBottom: 20,
+            padding: 8,
+          }}
+        >
+          <Text style={{ fontSize: 12, color: '#BDBDBD', textDecorationLine: 'underline' }}>
+            অ্যাকাউন্ট মুছে ফেলুন
           </Text>
         </TouchableOpacity>
 
