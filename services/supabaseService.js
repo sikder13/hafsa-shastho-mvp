@@ -390,6 +390,62 @@ export async function updateAIFeedback(interactionId, feedback) {
 }
 
 // ============================================================
+// CHAT HISTORY SYNC
+// ============================================================
+
+/**
+ * Sync a chat message to Supabase
+ * Called after every user message and Hafsa response
+ */
+export async function syncChatMessage(messageData) {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Not authenticated' };
+  
+    try {
+      const { error } = await supabase
+        .from('chat_history')
+        .insert({
+          user_id: userId,
+          role: messageData.role,
+          content: messageData.content,
+          is_welcome: messageData.isWelcome || false,
+          auto_logged: messageData.autoLogged || false,
+          auto_log_message: messageData.autoLogMessage || null,
+        });
+  
+      if (error) throw error;
+      return { success: true };
+    } catch (e) {
+      console.log('Chat sync failed:', e.message);
+      return { success: false, error: e.message };
+    }
+  }
+  
+  /**
+   * Load chat history from Supabase (for cloud restore)
+   * Returns last 50 messages
+   */
+  export async function loadChatHistory() {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, data: [] };
+  
+    try {
+      const { data, error } = await supabase
+        .from('chat_history')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true })
+        .limit(50);
+  
+      if (error) throw error;
+      return { success: true, data: data || [] };
+    } catch (e) {
+      console.log('Chat history load failed:', e.message);
+      return { success: false, data: [] };
+    }
+  }
+
+// ============================================================
 // EPDS ASSESSMENT SYNC
 // ============================================================
 

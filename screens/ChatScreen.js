@@ -26,7 +26,7 @@ import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
 import { calculateAge } from '../utils/helpers';
 import { useVoiceInput } from '../services/voiceService';
-import { syncDailyLog, syncAIInteraction } from '../services/supabaseService';
+import { syncDailyLog, syncAIInteraction, syncChatMessage } from '../services/supabaseService';
 
 export default function ChatScreen({ baby, onBack }) {
   const {
@@ -233,6 +233,9 @@ export default function ChatScreen({ baby, onBack }) {
             };
 
             setMessages(prev => [...prev, hafsaMsg]);
+            // Sync both messages to cloud
+            syncChatMessage({ role: 'user', content: userMessage }).catch(e => console.log('Chat sync:', e.message));
+            syncChatMessage({ role: 'assistant', content: fullText, autoLogged: autoLogResult.logged, autoLogMessage: autoLogResult.logged ? formatAutoLogConfirmation(autoLogResult.activities) : null }).catch(e => console.log('Chat sync:', e.message));
             // Sync AI interaction to Supabase (RLHF data)
             const ageInfo = baby?.birth_date ? calculateAge(baby.birth_date) : null;
             const postpartumDay = baby?.birth_date
