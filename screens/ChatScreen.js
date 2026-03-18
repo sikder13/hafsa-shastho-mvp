@@ -24,8 +24,9 @@ import { useApp } from '../context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
+import { calculateAge } from '../utils/helpers';
 import { useVoiceInput } from '../services/voiceService';
-import { syncDailyLog } from '../services/supabaseService';
+import { syncDailyLog, syncAIInteraction } from '../services/supabaseService';
 
 export default function ChatScreen({ baby, onBack }) {
   const {
@@ -232,6 +233,21 @@ export default function ChatScreen({ baby, onBack }) {
             };
 
             setMessages(prev => [...prev, hafsaMsg]);
+            // Sync AI interaction to Supabase (RLHF data)
+            const ageInfo = baby?.birth_date ? calculateAge(baby.birth_date) : null;
+            const postpartumDay = baby?.birth_date
+              ? Math.floor((new Date() - new Date(baby.birth_date)) / (1000 * 60 * 60 * 24))
+              : null;
+            syncAIInteraction({
+              userMessage: userMessage,
+              hafsaResponse: fullText,
+              babyAgeDays: ageInfo?.ageDays || null,
+              postpartumDay: postpartumDay,
+              autoLogged: autoLogResult.logged,
+              autoLogType: autoLogResult.logged ? autoLogResult.activities[0]?.type : null,
+              topic: 'general',
+              inputMethod: 'text',
+            }).catch(e => console.log('AI sync:', e.message));
             // Save conversation to AsyncStorage
             saveConversation([...messages, newUserMsg, hafsaMsg]);
             setStreamingText('');
@@ -282,6 +298,22 @@ export default function ChatScreen({ baby, onBack }) {
 
         setMessages(prev => [...prev, hafsaMsg]);
         saveConversation([...messages, hafsaMsg]);
+
+        // Sync AI interaction to Supabase (RLHF data)
+        const ageInfo = baby?.birth_date ? calculateAge(baby.birth_date) : null;
+        const postpartumDay = baby?.birth_date
+          ? Math.floor((new Date() - new Date(baby.birth_date)) / (1000 * 60 * 60 * 24))
+          : null;
+        syncAIInteraction({
+          userMessage: conversationHistory[conversationHistory.length - 1]?.content || '',
+          hafsaResponse: result.message,
+          babyAgeDays: ageInfo?.ageDays || null,
+          postpartumDay: postpartumDay,
+          autoLogged: autoLogResult?.logged || false,
+          autoLogType: autoLogResult?.logged ? autoLogResult.activities[0]?.type : null,
+          topic: 'general',
+          inputMethod: 'text',
+        }).catch(e => console.log('AI fallback sync:', e.message));
         scrollToBottom();
       } else {
         Alert.alert('ত্রুটি', result.message);

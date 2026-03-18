@@ -21,8 +21,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
+import { syncEPDS } from '../services/supabaseService';
 import { toBengaliNumber } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS } from '../utils/constants';
+//import { syncEPDS } from '../services/supabaseService';
 
 // ============================================================
 // EPDS QUESTIONS — Bengali adaptation
@@ -148,7 +150,7 @@ const EPDS_QUESTIONS = [
 ];
 
 export default function EdinburghScaleScreen({ onComplete, onBack }) {
-  const { motherProfile } = useApp();
+    const { motherProfile, baby } = useApp();
   const motherName = motherProfile?.name || 'মা';
 
   const [currentQuestion, setCurrentQuestion] = useState(-1); // -1 = intro
@@ -270,6 +272,16 @@ export default function EdinburghScaleScreen({ onComplete, onBack }) {
       await AsyncStorage.setItem('epds_last_date', new Date().toISOString());
 
       console.log('EPDS saved. Score:', score);
+      // Sync to Supabase
+      const postpartumDay = baby?.birth_date
+        ? Math.floor((new Date() - new Date(baby.birth_date)) / (1000 * 60 * 60 * 24))
+        : 0;
+      syncEPDS({
+        totalScore: score,
+        answers: answersObj,
+        riskLevel: score < 10 ? 'normal' : score < 13 ? 'moderate' : score < 20 ? 'high' : 'critical',
+        selfHarmFlag: answersObj[10] ? answersObj[10].score > 0 : false,
+      }, postpartumDay).catch(e => console.log('EPDS sync:', e.message));
     } catch (error) {
       console.error('Error saving EPDS:', error);
     }

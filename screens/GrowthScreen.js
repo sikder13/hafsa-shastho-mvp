@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { calculatePercentile } from '../data/whoGrowthStandards';
 import { toBengaliNumber, calculateAgeInMonths, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
+import { syncGrowthRecord } from '../services/supabaseService';
 import { getGrowthInsight } from '../services/intelligenceService';
 
 export default function GrowthScreen({ baby, onBack }) {
@@ -83,6 +84,9 @@ export default function GrowthScreen({ baby, onBack }) {
     const updated = [newMeasurement, ...measurements];
     setMeasurements(updated);
     saveMeasurements(updated);
+
+    // Sync to Supabase
+    syncGrowthRecord(newMeasurement, baby.id).catch(e => console.log('Growth sync:', e.message));
     
     // Get intelligent feedback from rules engine
     const feedback = getGrowthInsight(updated, calculateAgeInMonths(baby.birth_date), baby.gender);

@@ -309,12 +309,13 @@ export async function syncVaccineRecord(vaccineId, vaccineData, babyId) {
       const { error } = await supabase
         .from('vaccine_records')
         .upsert({
-          baby_id: realBabyId,
-          user_id: userId,
-          vaccine_name: vaccineId,
-          status: vaccineData.completed ? 'completed' : 'pending',
-          completed_date: vaccineData.completedDate ? new Date(vaccineData.completedDate).toISOString().split('T')[0] : null,
-        }, { onConflict: 'id' });
+            baby_id: realBabyId,
+            user_id: userId,
+            vaccine_name: vaccineId,
+            age_days: vaccineData.ageDays || null,
+            status: vaccineData.completed ? 'completed' : 'pending',
+            completed_date: vaccineData.completedDate ? new Date(vaccineData.completedDate).toISOString().split('T')[0] : null,
+          }, { onConflict: 'baby_id,vaccine_name' });
   
       if (error) throw error;
       return { success: true };

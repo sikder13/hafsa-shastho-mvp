@@ -13,8 +13,11 @@ import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
 import { EPI_CENTERS, AREAS } from '../data/epiCenters';
 import { toBengaliNumber, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
+import { syncVaccineRecord } from '../services/supabaseService';
+import { useApp } from '../context/AppContext';
 
 export default function VaccineScreen({ baby, onBack }) {
+  const { updateVaccineStatus: updateGlobalVaccine } = useApp();
   const [vaccineStatus, setVaccineStatus] = useState({});
   const [userArea, setUserArea] = useState('');
   const [showLocationPicker, setShowLocationPicker] = useState(false);
@@ -151,6 +154,8 @@ export default function VaccineScreen({ baby, onBack }) {
               delete newStatus[vaccine.id];
               setVaccineStatus(newStatus);
               saveVaccineStatus(newStatus);
+              // Sync to AppContext so HomeScreen updates
+              updateGlobalVaccine(vaccine.id, false);
               Alert.alert('বাতিল করা হয়েছে', 'টিকা রেকর্ড মুছে ফেলা হয়েছে');
             }
           }
@@ -165,15 +170,20 @@ export default function VaccineScreen({ baby, onBack }) {
           {
             text: 'হ্যাঁ, নিয়েছি',
             onPress: () => {
+              const vaccineData = {
+                completed: true,
+                completedDate: new Date().toISOString()
+              };
               const newStatus = {
                 ...vaccineStatus,
-                [vaccine.id]: {
-                  completed: true,
-                  completedDate: new Date().toISOString()
-                }
+                [vaccine.id]: vaccineData
               };
               setVaccineStatus(newStatus);
               saveVaccineStatus(newStatus);
+              // Sync to AppContext so HomeScreen updates
+              updateGlobalVaccine(vaccine.id, true, vaccineData.completedDate);
+              // Sync to Supabase
+              syncVaccineRecord(vaccine.id, vaccineData, baby.id).catch(e => console.log('Vaccine sync:', e.message));
               Alert.alert('সফল!', 'টিকা সংরক্ষিত হয়েছে');
             }
           }

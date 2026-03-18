@@ -49,6 +49,7 @@ const ALERT_DISPLAY = {
   vaccine_due_soon: { icon: '💉', color: '#2196F3' },
   // Growth alerts
   weight_below_p3: { icon: '📊', color: '#F44336' },
+  weight_below_p15: { icon: '📉', color: '#FF9800' },
   slow_growth_velocity: { icon: '📊', color: '#FF9800' },
   // Cross alerts
   isolation_depression_risk: { icon: '💔', color: '#F44336' },
@@ -83,6 +84,7 @@ function getAlertBengali(alertKey, insights) {
     vaccine_due_today: `আজ ${vaccine?.upcoming?.[0]?.name || 'টিকা'} দেওয়ার দিন!`,
     vaccine_due_soon: `${vaccine?.upcoming?.[0]?.name || 'টিকা'} ${toBengaliNumber(vaccine?.upcoming?.[0]?.daysUntil || 0)} দিনে`,
     weight_below_p3: `ওজন স্বাভাবিকের নিচে — ডাক্তারকে জানান`,
+    weight_below_p15: `ওজন একটু কম — খাওয়ানো বাড়ান, পরবর্তী চেকআপে জানান`,
     slow_growth_velocity: `ওজন বৃদ্ধি ধীর হচ্ছে`,
     isolation_depression_risk: `একা সামলাচ্ছেন + মন ভালো নেই — সাহায্য জরুরি`,
     growth_feed_concern: `ওজন কম + খাওয়া কম — মনোযোগ দিন`,
