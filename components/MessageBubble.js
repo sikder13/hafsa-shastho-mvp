@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncAIInteraction, updateAIFeedback } from '../services/supabaseService';
 import { formatTimeBengali } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
 
@@ -61,6 +62,10 @@ export default function MessageBubble({ message, isUser, previousUserMessage }) 
           log.push(feedbackEntry);
         }
 
+        // Sync feedback to Supabase ai_interactions
+        // Find the matching interaction by content and update its feedback
+        syncFeedbackToCloud(message.content, newRating);
+
         // Keep last 500 entries
         const trimmed = log.slice(-500);
         await AsyncStorage.setItem(logKey, JSON.stringify(trimmed));
@@ -73,6 +78,34 @@ export default function MessageBubble({ message, isUser, previousUserMessage }) 
     }
   };
 
+
+  const syncFeedbackToCloud = async (hafsaResponse, rating) => {
+    try {
+      const { supabase } = require('../supabaseClient');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Find the most recent ai_interaction matching this response
+      const { data, error } = await supabase
+        .from('ai_interactions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('hafsa_response', hafsaResponse)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data && !error) {
+        await supabase
+          .from('ai_interactions')
+          .update({ feedback: rating })
+          .eq('id', data.id);
+        console.log('👍 Feedback synced to Supabase:', rating);
+      }
+    } catch (e) {
+      console.log('Feedback cloud sync:', e.message);
+    }
+  };
   return (
     <View
       style={{
