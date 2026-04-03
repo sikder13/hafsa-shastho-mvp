@@ -24,6 +24,7 @@ import { useApp } from '../context/AppContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
+import OfflineBar, { useIsOffline } from '../components/OfflineBar';
 import { calculateAge } from '../utils/helpers';
 import { useVoiceInput } from '../services/voiceService';
 import { syncDailyLog, syncAIInteraction, syncChatMessage } from '../services/supabaseService';
@@ -47,6 +48,8 @@ export default function ChatScreen({ baby, onBack }) {
   const scrollViewRef = useRef(null);
   const abortRef = useRef(null);
   const contextRef = useRef(null);
+  const isOffline = useIsOffline();
+
   // Voice input
   const {
     isListening, partialText, finalText,
@@ -341,6 +344,9 @@ export default function ChatScreen({ baby, onBack }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F9F9F9' }}>
 
+      {/* OFFLINE BAR */}
+      <OfflineBar />
+
       {/* HEADER */}
       <View style={{
         flexDirection: 'row',
@@ -527,7 +533,7 @@ export default function ChatScreen({ baby, onBack }) {
           <TextInput
             value={inputText}
             onChangeText={setInputText}
-            placeholder={isListening ? 'শুনছি...' : 'মেসেজ লিখুন বা 🎤 চাপুন...'}
+            placeholder={isOffline ? 'ইন্টারনেট দরকার' : isListening ? 'শুনছি...' : 'মেসেজ লিখুন বা 🎤 চাপুন...'}
             placeholderTextColor="#999"
             style={{
               flex: 1,
@@ -542,15 +548,16 @@ export default function ChatScreen({ baby, onBack }) {
               borderColor: isListening ? '#FF9800' : 'transparent',
             }}
             multiline
-            editable={!loading && !isListening}
+            editable={!loading && !isListening && !isOffline}
             onSubmitEditing={() => handleSend()}
           />
 {/* MICROPHONE BUTTON — shows when input is empty and not loading */}
 {!inputText.trim() && !loading && !isListening && (
             <TouchableOpacity
               onPress={startListening}
+              disabled={isOffline}
               style={{
-                backgroundColor: '#FFF3E0',
+                backgroundColor: isOffline ? '#E0E0E0' : '#FFF3E0',
                 width: 48,
                 height: 48,
                 borderRadius: 24,
@@ -558,7 +565,8 @@ export default function ChatScreen({ baby, onBack }) {
                 alignItems: 'center',
                 marginRight: 8,
                 borderWidth: 1.5,
-                borderColor: '#FF9800',
+                borderColor: isOffline ? '#BDBDBD' : '#FF9800',
+                opacity: isOffline ? 0.5 : 1,
               }}
             >
               <Text style={{ fontSize: 22 }}>🎤</Text>
@@ -586,9 +594,9 @@ export default function ChatScreen({ baby, onBack }) {
           {/* SEND BUTTON */}
           <TouchableOpacity
             onPress={() => handleSend()}
-            disabled={loading || !inputText.trim() || isListening}
+            disabled={loading || !inputText.trim() || isListening || isOffline}
             style={{
-              backgroundColor: loading || !inputText.trim() || isListening ? '#BDBDBD' : COLORS.primary,
+              backgroundColor: loading || !inputText.trim() || isListening || isOffline ? '#BDBDBD' : COLORS.primary,
               width: 48,
               height: 48,
               borderRadius: 24,

@@ -3,7 +3,7 @@
 // Flow: Auth (phone OTP) → Onboarding (baby + mother) → TabNavigator
 
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { AppProvider, useApp } from './context/AppContext';
 import { COLORS } from './utils/constants';
@@ -12,6 +12,7 @@ import AuthScreen from './screens/AuthScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import TabNavigator from './navigation/TabNavigator';
 import ErrorBoundary from './components/ErrorBoundary';
+import LoadingScreen from './components/LoadingScreen';
 import { supabase } from './supabaseClient';
 import * as Notifications from 'expo-notifications';
 import {
@@ -89,11 +90,7 @@ function AppContent() {
 
   // Show loading while checking auth
   if (authLoading || loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background }}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   // Step 1: Not authenticated → show login
