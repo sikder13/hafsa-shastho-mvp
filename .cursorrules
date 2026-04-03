@@ -1,0 +1,51 @@
+# HAFSA SHASTHO — Cursor Rules (Auto-loaded by Claude Code)
+
+## READ FIRST
+Before any work, read CLAUDE_CONTEXT.md in the project root for full architecture.
+
+## ABSOLUTE RULES (violations = reject the code)
+
+1. NO medical logic in UI components (screens/). Medical assessments ONLY in services/rules/*.js
+2. NO LLM/Claude imports outside services/claudeAPI.js. This app is LLM-agnostic.
+3. NO Supabase calls outside services/supabaseService.js. Screens never talk to Supabase directly.
+4. EVERY AsyncStorage write MUST also update AppContext (context/AppContext.js) so other screens see changes immediately.
+5. EVERY new Supabase table row MUST have user_id with RLS policy.
+6. NEVER use fetch() for Claude API streaming. Use XMLHttpRequest (React Native fetch doesn't support streaming).
+7. NEVER put ANTHROPIC_API_KEY or any secret in client code. Keys come from .env via @env.
+
+## PATTERNS TO FOLLOW
+
+- Date operations: use dayjs (imported from services/rules/dateUtils.js). Never use raw new Date() for calculations.
+- Bengali numbers: use toBengaliNumber() from utils/helpers.js for all user-facing numbers.
+- Baby ID for Supabase: use getSupabaseBabyId() from supabaseService.js (local IDs like baby-xxx differ from Supabase UUIDs).
+- Background sync: after every local save, call the corresponding sync function from supabaseService.js with .catch() — never await it in the UI thread.
+- Error handling: wrap all async operations in try/catch with Bengali error messages.
+
+## ARCHITECTURE
+
+- Intelligence Service (services/intelligenceService.js) is the brain. Screens call it for insights/alerts/assessments.
+- Rules Engine (services/rules/*.js) returns STRUCTURED DATA, never Bengali text.
+- Claude (via hafsaPrompt.js → claudeAPI.js) receives pre-computed assessments and wraps them in empathetic Bengali.
+- Offline-first: AsyncStorage is primary, Supabase syncs in background. App works without internet.
+
+## AFTER EVERY CHANGE
+
+Self-review checklist:
+- [ ] No medical logic in UI?
+- [ ] No direct Supabase calls from screens?
+- [ ] No LLM imports outside claudeAPI.js?
+- [ ] AsyncStorage writes also update AppContext?
+- [ ] Background Supabase sync added with .catch()?
+- [ ] Bengali numbers use toBengaliNumber()?
+- [ ] Date operations use dayjs?
+- [ ] Error handling with try/catch?
+- [ ] Test plan included in response?
+- [ ] No medical logic in UI?
+- [ ] No direct Supabase calls from screens?
+- [ ] No LLM imports outside claudeAPI.js?
+- [ ] AsyncStorage writes also update AppContext?
+- [ ] Background Supabase sync added with .catch()?
+- [ ] Bengali numbers use toBengaliNumber()?
+- [ ] Date operations use dayjs?
+- [ ] Error handling with try/catch?
+- [ ] Test plan included in response?
