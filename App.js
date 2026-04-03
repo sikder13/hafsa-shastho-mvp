@@ -13,6 +13,12 @@ import OnboardingScreen from './screens/OnboardingScreen';
 import TabNavigator from './navigation/TabNavigator';
 import ErrorBoundary from './components/ErrorBoundary';
 import LoadingScreen from './components/LoadingScreen';
+import {
+  useFonts,
+  HindSiliguri_400Regular,
+  HindSiliguri_600SemiBold,
+  HindSiliguri_700Bold,
+} from '@expo-google-fonts/hind-siliguri';
 import { supabase } from './supabaseClient';
 import * as Notifications from 'expo-notifications';
 import {
@@ -137,6 +143,16 @@ function AppContent() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    HindSiliguri_400Regular,
+    HindSiliguri_600SemiBold,
+    HindSiliguri_700Bold,
+  });
+
+  if (!fontsLoaded) {
+    return <LoadingScreen />;
+  }
+
   return (
     <AppProvider>
       <ErrorBoundary>

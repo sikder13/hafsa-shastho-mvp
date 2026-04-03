@@ -593,11 +593,6 @@ export default function HomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* DEV RESET */}
-        <TouchableOpacity onPress={handleResetApp}
-          style={{ alignSelf: 'center', marginTop: 40, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, backgroundColor: '#F5F5F5' }}>
-          <Text style={{ fontSize: 12, color: '#BDBDBD' }}>রিসেট (ডেভ)</Text>
-        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
