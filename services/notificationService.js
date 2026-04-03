@@ -486,6 +486,44 @@ export async function setupNotificationCategories() {
 }
 
 // ============================================================
+// 12. SCHEDULE TONIGHT CARD NOTIFICATION
+// ============================================================
+
+/**
+ * Schedule a push notification at 7 PM with tonight's predictive card.
+ * If predictiveCard.show is false, cancels any existing tonight notification.
+ * @param {Object} predictiveCard - Result from getPredictiveCard()
+ */
+export async function scheduleTonightCardNotification(predictiveCard) {
+  try {
+    // Always cancel previous tonight notification first
+    await cancelNotificationsByType('tonight_card');
+
+    if (!predictiveCard?.show) return null;
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '\uD83C\uDF19 আজ রাতে',
+        body: `${predictiveCard.message} ${predictiveCard.action}`,
+        data: { type: 'tonight_card' },
+        sound: 'default',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 19,
+        minute: 0,
+      },
+    });
+
+    console.log('🔔 Tonight card notification scheduled for 7 PM daily');
+    return id;
+  } catch (e) {
+    console.log('🔔 Tonight card notification error:', e.message);
+    return null;
+  }
+}
+
+// ============================================================
 // INTERNAL HELPERS
 // ============================================================
 

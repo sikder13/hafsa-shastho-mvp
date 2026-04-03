@@ -14,7 +14,8 @@ import { assessGrowth, getPostMeasurementFeedback } from './rules/growthRules';
 import { assessVaccines } from './rules/vaccineRules';
 import { analyzeCrossConnections } from './rules/crossRules';
 import { detectMilestones } from './rules/milestoneRules';
-import { calculateAge, calculateAgeInMonths } from '../utils/helpers';
+import { calculateAge, calculateAgeInMonths, toBengaliNumber } from '../utils/helpers';
+import dayjs from 'dayjs';
 
 /**
  * Get all home screen insights — the main intelligence call
@@ -261,6 +262,140 @@ export function getWeeklyReport(data) {
 export function getAlerts(data) {
   const home = getHomeInsights(data);
   return home.alerts;
+}
+
+/**
+ * Get predictive "Tonight" card — KILLER FEATURE
+ * Shows between 7 PM and 6 AM with a single prediction + action.
+ * Pure Rules Engine — no LLM call.
+ *
+ * @param {Object} baby - Baby profile { name, birth_date }
+ * @param {Object} logs - All logs { feed: [], sleep: [], ... }
+ * @param {Object} motherCheckIn - todayMotherLog
+ * @param {Array} motherLogHistory - Last 30 days of mother logs
+ * @param {Object} vaccineStatus - { vaccineId: { completed, completedDate } }
+ * @param {Array} epiSchedule - BD_EPI_SCHEDULE array
+ * @returns {Object} { show, severity, icon, title, message, action }
+ */
+export function getPredictiveCard(baby, logs, motherCheckIn, motherLogHistory, vaccineStatus, epiSchedule) {
+  const now = dayjs();
+  const hour = now.hour();
+
+  // Only show between 7 PM (19) and 6 AM (6)
+  if (hour >= 6 && hour < 19) {
+    return { show: false };
+  }
+
+  if (!baby?.name || !logs) {
+    return { show: false };
+  }
+
+  const babyName = baby.name;
+  const feedLogs = logs.feed || [];
+
+  // --- 1. Predict night waking frequency from last 7 nights ---
+  let totalNightFeeds = 0;
+  let nightsWithData = 0;
+
+  for (let d = 0; d < 7; d++) {
+    const targetDate = dayjs().subtract(d, 'day');
+    // Night window: 10 PM of targetDate to 6 AM of next day
+    const nightStart = targetDate.hour(22).minute(0).second(0);
+    const nightEnd = targetDate.add(1, 'day').hour(6).minute(0).second(0);
+
+    const nightFeeds = feedLogs.filter(log => {
+      try {
+        const logTime = dayjs(log.timestamp);
+        return logTime.isAfter(nightStart) && logTime.isBefore(nightEnd);
+      } catch { return false; }
+    }).length;
+
+    if (nightFeeds > 0) nightsWithData++;
+    totalNightFeeds += nightFeeds;
+  }
+
+  const avgNightFeeds = nightsWithData > 0
+    ? Math.round(totalNightFeeds / nightsWithData)
+    : 2; // Default estimate if no data
+
+  // --- 2. Check last feed time ---
+  let lastFeedHoursAgo = null;
+  if (feedLogs.length > 0) {
+    const lastFeed = dayjs(feedLogs[0].timestamp);
+    lastFeedHoursAgo = now.diff(lastFeed, 'hour', true);
+  }
+
+  // --- 3. Check mother's sleep deprivation (last 3 days) ---
+  let motherSleepDeprived = false;
+  if (motherLogHistory && motherLogHistory.length >= 3) {
+    const last3Days = motherLogHistory.slice(0, 3);
+    const allLowSleep = last3Days.every(log => {
+      const sleepHours = parseFloat(log.sleepHours) || 0;
+      return sleepHours > 0 && sleepHours < 4;
+    });
+    if (allLowSleep) motherSleepDeprived = true;
+  }
+
+  // --- 4. Check if vaccine is due tomorrow ---
+  let vaccineTomorrow = null;
+  if (baby.birth_date && epiSchedule) {
+    const birthDate = dayjs(baby.birth_date);
+    const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
+
+    for (const vaccine of epiSchedule) {
+      if (vaccineStatus?.[vaccine.id]?.completed) continue;
+      const dueDate = birthDate.add(vaccine.ageDays, 'day').format('YYYY-MM-DD');
+      if (dueDate === tomorrow) {
+        vaccineTomorrow = vaccine.nameBangla;
+        break;
+      }
+    }
+  }
+
+  // --- 5. Build message and action ---
+  let message = `আজ রাতে ${babyName} প্রায় ${toBengaliNumber(avgNightFeeds)} বার উঠতে পারে।`;
+
+  let action = '';
+  if (lastFeedHoursAgo !== null && lastFeedHoursAgo > 3 && hour >= 19 && hour <= 22) {
+    action = 'ঘুমানোর আগে একবার ফিড করিয়ে নিন।';
+  } else if (lastFeedHoursAgo !== null && lastFeedHoursAgo < 2) {
+    action = 'সদ্য খেয়েছে, ভালো ঘুম হতে পারে।';
+  } else {
+    action = 'ঘুমানোর আগে একবার ফিড করিয়ে নিন।';
+  }
+
+  if (motherSleepDeprived) {
+    message += ' আপনার ঘুম অনেক কম — আজ কাউকে বলুন রাতে দায়িত্ব নিতে।';
+  }
+
+  if (vaccineTomorrow) {
+    action += ` আগামীকাল ${vaccineTomorrow} টিকা — প্যারাসিটামল রেডি রাখুন।`;
+  }
+
+  // --- 6. Determine severity ---
+  let severity = 'green';
+  if (avgNightFeeds >= 5 || motherSleepDeprived || vaccineTomorrow) {
+    severity = 'orange';
+  } else if (avgNightFeeds >= 3 || (lastFeedHoursAgo !== null && lastFeedHoursAgo > 3)) {
+    severity = 'yellow';
+  }
+
+  // --- 7. Icon and title ---
+  const icons = { green: '🌙', yellow: '🌙', orange: '⚠️' };
+  const titles = {
+    green: `${babyName} — আজ রাতে`,
+    yellow: `${babyName} — আজ রাতের প্রস্তুতি`,
+    orange: `${babyName} — আজ রাতে সতর্ক থাকুন`,
+  };
+
+  return {
+    show: true,
+    severity,
+    icon: icons[severity],
+    title: titles[severity],
+    message,
+    action,
+  };
 }
 
 /**

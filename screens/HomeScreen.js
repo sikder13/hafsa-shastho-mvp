@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { useNavigation } from '@react-navigation/native';
-import { getHomeInsights } from '../services/intelligenceService';
+import { getHomeInsights, getPredictiveCard } from '../services/intelligenceService';
 import { toBengaliNumber, getGreeting } from '../utils/helpers';
 import { COLORS, TEXT } from '../utils/constants';
 import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
@@ -22,6 +22,7 @@ import {
   scheduleCheckInReminder,
   scheduleEveningSummary,
   scheduleMorningCatchup,
+  scheduleTonightCardNotification,
 } from '../services/notificationService';
 
 // ============================================================
@@ -173,6 +174,21 @@ export default function HomeScreen() {
       epiSchedule: BD_EPI_SCHEDULE,
     });
   }, [baby, motherProfile, logs, todayMotherLog, motherLogHistory, vaccineStatus, growthMeasurements]);
+
+  // Predictive "Tonight" card — shows between 7 PM and 6 AM
+  const tonightCard = useMemo(() => {
+    if (!baby) return { show: false };
+    return getPredictiveCard(baby, logs, todayMotherLog, motherLogHistory, vaccineStatus, BD_EPI_SCHEDULE);
+  }, [baby, logs, todayMotherLog, motherLogHistory, vaccineStatus]);
+
+  // Schedule tonight card push notification
+  useEffect(() => {
+    try {
+      scheduleTonightCardNotification(tonightCard).catch(e => console.log('Tonight notif:', e.message));
+    } catch (e) {
+      console.log('Tonight card notification error:', e.message);
+    }
+  }, [tonightCard]);
 
   const handleResetApp = () => {
     Alert.alert(
@@ -442,6 +458,32 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* PREDICTIVE "TONIGHT" CARD — shows between 7 PM and 6 AM */}
+        {tonightCard.show && (
+          <View style={{
+            backgroundColor: tonightCard.severity === 'green' ? '#F1F8E9' : tonightCard.severity === 'yellow' ? '#FFF8E1' : '#FFF3E0',
+            borderRadius: 16, padding: 16, marginBottom: 20,
+            borderLeftWidth: 4,
+            borderLeftColor: tonightCard.severity === 'green' ? '#4CAF50' : tonightCard.severity === 'yellow' ? '#FF9800' : '#F44336',
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 20, marginRight: 8 }}>{tonightCard.icon}</Text>
+              <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.dark, flex: 1 }}>
+                {tonightCard.title}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 15, color: '#424242', lineHeight: 22, marginBottom: 8 }}>
+              {tonightCard.message}
+            </Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.primary, lineHeight: 20 }}>
+              {tonightCard.action}
+            </Text>
+            <Text style={{ fontSize: 12, color: '#9E9E9E', textAlign: 'right', marginTop: 8 }}>
+              🌙 আজ রাতে
+            </Text>
+          </View>
+        )}
 
         {/* DAILY TIP — age-appropriate content (not health logic) */}
         <View style={{
