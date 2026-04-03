@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { syncEPDS } from '../services/supabaseService';
+import { scheduleEPDSReminder } from '../services/notificationService';
 import { toBengaliNumber } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS } from '../utils/constants';
 //import { syncEPDS } from '../services/supabaseService';
@@ -282,6 +283,9 @@ export default function EdinburghScaleScreen({ onComplete, onBack }) {
         riskLevel: score < 10 ? 'normal' : score < 13 ? 'moderate' : score < 20 ? 'high' : 'critical',
         selfHarmFlag: answersObj[10] ? answersObj[10].score > 0 : false,
       }, postpartumDay).catch(e => console.log('EPDS sync:', e.message));
+
+      // Reschedule EPDS reminder for 2 weeks from now
+      scheduleEPDSReminder(new Date().toISOString()).catch(e => console.log('EPDS reminder:', e.message));
     } catch (error) {
       console.error('Error saving EPDS:', error);
     }

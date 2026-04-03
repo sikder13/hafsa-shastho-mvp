@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useApp } from '../context/AppContext';
 import { useNavigation } from '@react-navigation/native';
 import { getHomeInsights, getPredictiveCard } from '../services/intelligenceService';
@@ -24,6 +25,7 @@ import {
   scheduleEveningSummary,
   scheduleMorningCatchup,
   scheduleTonightCardNotification,
+  scheduleEPDSReminder,
 } from '../services/notificationService';
 import { shareMilestone, shareWeeklySummary, shareDailySummary } from '../services/shareService';
 
@@ -162,6 +164,12 @@ export default function HomeScreen() {
       if (baby?.name) {
         scheduleMorningCatchup(baby.name).catch(e => console.log('Morning catchup:', e.message));
       }
+
+      // EPDS reminder — every 2 weeks after last assessment
+      AsyncStorage.getItem('epds_last_date').then(lastDate => {
+        const epdsDate = lastDate || (baby?.birth_date ? new Date(new Date(baby.birth_date).getTime() + 14*24*60*60*1000).toISOString() : null);
+        if (epdsDate) scheduleEPDSReminder(epdsDate).catch(e => console.log('EPDS reminder:', e.message));
+      }).catch(e => console.log('EPDS date load:', e.message));
     } catch (e) {
       console.log('Notification scheduling error:', e.message);
     }

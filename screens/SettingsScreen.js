@@ -16,6 +16,7 @@ import { useApp } from '../context/AppContext';
 import { formatDateInput, calculateAge, toBengaliNumber } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
 import { supabase } from '../supabaseClient';
+import { cancelAllNotifications } from '../services/notificationService';
 
 export default function SettingsScreen({ onBack }) {
     const {
@@ -104,6 +105,7 @@ export default function SettingsScreen({ onBack }) {
           text: 'লগআউট করুন',
           onPress: async () => {
             try {
+              await cancelAllNotifications();
               await supabase.auth.signOut();
               await resetAllData();
               setIsAuthenticated(false);
@@ -141,6 +143,7 @@ export default function SettingsScreen({ onBack }) {
                   style: 'destructive',
                   onPress: async () => {
                     try {
+                      await cancelAllNotifications();
                       // Delete from Supabase (CASCADE will remove all related data)
                       const { data: { user } } = await supabase.auth.getUser();
                       if (user) {

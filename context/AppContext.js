@@ -470,8 +470,10 @@ useEffect(() => {
       // Get all keys and remove them one by one
       // (AsyncStorage.clear() fails on iOS due to directory permission)
       const allKeys = await AsyncStorage.getAllKeys();
-      if (allKeys.length > 0) {
-        await AsyncStorage.multiRemove(allKeys);
+      // Preserve celebrated milestones across logout/login cycles
+      const keysToRemove = allKeys.filter(k => k !== 'celebrated_milestones');
+      if (keysToRemove.length > 0) {
+        await AsyncStorage.multiRemove(keysToRemove);
       }
       setBaby(null);
       setMotherProfile(null);
