@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
@@ -26,6 +25,7 @@ import {
   scheduleMorningCatchup,
   scheduleTonightCardNotification,
 } from '../services/notificationService';
+import { shareMilestone, shareWeeklySummary, shareDailySummary } from '../services/shareService';
 
 // ============================================================
 // BENGALI TEXT FORMATTERS — translate structured data to display text
@@ -216,13 +216,13 @@ export default function HomeScreen() {
     }
   }, []);
 
-  const handleShareMilestone = useCallback(async (shareText) => {
+  const handleShareMilestone = useCallback(async (milestone) => {
     try {
-      await Share.share({ message: shareText });
+      await shareMilestone(milestone, baby);
     } catch (e) {
       console.log('Share error:', e.message);
     }
-  }, []);
+  }, [baby]);
 
   const handleResetApp = () => {
     Alert.alert(
@@ -296,12 +296,9 @@ export default function HomeScreen() {
             backgroundColor: '#E8F5E9', borderRadius: 16, padding: 16, marginBottom: 20,
             borderWidth: 2, borderColor: '#4CAF50',
           }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ fontSize: 28, marginRight: 10 }}>{uncelebratedMilestone.icon}</Text>
-              <Text style={{ flex: 1, fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark }}>
-                {uncelebratedMilestone.title}
-              </Text>
-            </View>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark, marginBottom: 8 }}>
+              {uncelebratedMilestone.title}
+            </Text>
             <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 14, lineHeight: 20 }}>
               {uncelebratedMilestone.subtitle}
             </Text>
@@ -313,7 +310,7 @@ export default function HomeScreen() {
                 <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>🎉 দেখেছি!</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => handleShareMilestone(uncelebratedMilestone.shareText)}
+                onPress={() => handleShareMilestone(uncelebratedMilestone)}
                 style={{ flex: 1, backgroundColor: 'white', padding: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.primary }}
               >
                 <Text style={{ color: COLORS.primary, fontSize: 14, fontWeight: 'bold' }}>📱 শেয়ার করুন</Text>

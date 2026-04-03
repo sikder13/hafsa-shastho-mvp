@@ -48,9 +48,13 @@ const RECOVERY_MILESTONES = [
 // 1. CHECK MILESTONES — main function
 // ============================================================
 
+// Recency window: a milestone only shows if achieved within this many days
+const RECENCY_WINDOW = 3;
+
 /**
- * Detect all newly achieved milestones.
- * Returns only milestones not yet celebrated.
+ * Detect RECENTLY achieved milestones (within 3 days).
+ * A milestone that happened weeks/months ago is silently skipped — never shown.
+ * Returns only milestones that are BOTH recent AND not yet celebrated.
  *
  * @param {Object} baby - { name, birth_date, gender }
  * @param {Object} logs - { feed: [], sleep: [], diaper: [], food: [] }
@@ -58,7 +62,7 @@ const RECOVERY_MILESTONES = [
  * @param {Object} motherProfile - { delivery_type, ... }
  * @param {Array} growthMeasurements - [{ weight, height, date }]
  * @param {Array} epiSchedule - BD_EPI_SCHEDULE
- * @returns {Array} Array of uncelebrated milestone objects
+ * @returns {Array} Array of recent uncelebrated milestone objects
  */
 export async function checkMilestones(baby, logs, vaccineStatus, motherProfile, growthMeasurements, epiSchedule) {
   if (!baby?.birth_date) return [];
@@ -66,116 +70,100 @@ export async function checkMilestones(baby, logs, vaccineStatus, motherProfile, 
   try {
     const celebrated = await getCelebratedMilestones();
     const achieved = [];
-    const autoMarkIds = []; // Track milestones auto-celebrated (older ones skipped)
 
     const ageDays = dayjs().diff(dayjs(baby.birth_date), 'day');
     const babyName = baby.name || 'শিশু';
 
     // --- Age milestones ---
-    // Find the most recent achieved age milestone, auto-celebrate older ones
-    const achievedAgeMilestones = AGE_MILESTONES.filter(m => ageDays >= m.days);
-    if (achievedAgeMilestones.length > 0) {
-      // Auto-celebrate all older age milestones (mother wasn't using the app then)
-      const olderMilestones = achievedAgeMilestones.slice(0, -1);
-      for (const old of olderMilestones) {
-        if (!celebrated.includes(old.id)) {
-          celebrated.push(old.id);
-          autoMarkIds.push(old.id);
-        }
-      }
-
-      // Only show the most recent age milestone
-      const latest = achievedAgeMilestones[achievedAgeMilestones.length - 1];
-      if (!celebrated.includes(latest.id)) {
-        const extra = latest.days === 180 ? ' শক্ত খাবার শুরু করার সময়!' : '';
+    // Only show if baby age is within [milestone_days, milestone_days + 3]
+    for (const m of AGE_MILESTONES) {
+      if (celebrated.includes(m.id)) continue;
+      if (ageDays >= m.days && ageDays <= m.days + RECENCY_WINDOW) {
+        const extra = m.days === 180 ? ' শক্ত খাবার শুরু করার সময়!' : '';
         achieved.push({
-          id: latest.id,
+          id: m.id,
           type: 'age',
           icon: '🎉',
-          title: `🎉 ${babyName} আজ ${latest.label}!${extra}`,
-          subtitle: `${babyName} এর ${latest.label} উদযাপন! 🎉`,
-          shareText: generateShareText({ type: 'age', detail: latest.label }, baby),
+          title: `🎉 ${babyName} আজ ${m.label}!${extra}`,
+          subtitle: `${babyName} এর ${m.label} উদযাপন! 🎉`,
+          shareText: generateShareText({ type: 'age', detail: m.label }, baby),
           celebratedAt: null,
         });
       }
     }
 
     // --- Weight milestones ---
+    // Only show if the latest measurement was recorded within 3 days
+    // AND it crossed a weight threshold
     if (growthMeasurements && growthMeasurements.length > 0) {
-      const latestWeight = growthMeasurements[0]?.weight;
-      if (latestWeight) {
-        const achievedWeights = WEIGHT_THRESHOLDS.filter(kg => latestWeight >= kg);
-        if (achievedWeights.length > 0) {
-          // Auto-celebrate all older weight milestones
-          const olderWeights = achievedWeights.slice(0, -1);
-          for (const kg of olderWeights) {
-            const id = `weight_${kg}kg`;
-            if (!celebrated.includes(id)) {
-              celebrated.push(id);
-              autoMarkIds.push(id);
-            }
-          }
+      const latest = growthMeasurements[0];
+      const latestWeight = latest?.weight;
+      const measurementDate = latest?.date;
 
-          // Only show the most recent weight milestone
-          const latestKg = achievedWeights[achievedWeights.length - 1];
-          const id = `weight_${latestKg}kg`;
-          if (!celebrated.includes(id)) {
-            achieved.push({
-              id,
-              type: 'weight',
-              icon: '⚖️',
-              title: `⚖️ ${babyName} ${toBengaliNumber(latestKg)} কেজি হয়েছে!`,
-              subtitle: 'বাড়ছে সুন্দর!',
-              shareText: generateShareText({ type: 'weight', detail: `${toBengaliNumber(latestKg)} কেজি` }, baby),
-              celebratedAt: null,
-            });
+      if (latestWeight && measurementDate) {
+        const daysSinceMeasurement = dayjs().diff(dayjs(measurementDate), 'day');
+
+        if (daysSinceMeasurement <= RECENCY_WINDOW) {
+          for (const kg of WEIGHT_THRESHOLDS) {
+            const id = `weight_${kg}kg`;
+            if (celebrated.includes(id)) continue;
+            if (latestWeight >= kg) {
+              achieved.push({
+                id,
+                type: 'weight',
+                icon: '⚖️',
+                title: `⚖️ ${babyName} ${toBengaliNumber(kg)} কেজি হয়েছে!`,
+                subtitle: 'বাড়ছে সুন্দর!',
+                shareText: generateShareText({ type: 'weight', detail: `${toBengaliNumber(kg)} কেজি` }, baby),
+                celebratedAt: null,
+              });
+            }
           }
         }
       }
     }
 
     // --- Logging streak milestones ---
+    // Only show if streak count EXACTLY matches a milestone number today
     const streak = calculateLoggingStreak(logs);
-    const achievedStreaks = STREAK_MILESTONES.filter(m => streak >= m.days);
-    if (achievedStreaks.length > 0) {
-      // Auto-celebrate older streak milestones
-      const olderStreaks = achievedStreaks.slice(0, -1);
-      for (const old of olderStreaks) {
-        if (!celebrated.includes(old.id)) {
-          celebrated.push(old.id);
-          autoMarkIds.push(old.id);
-        }
-      }
-
-      const latest = achievedStreaks[achievedStreaks.length - 1];
-      if (!celebrated.includes(latest.id)) {
+    for (const m of STREAK_MILESTONES) {
+      if (celebrated.includes(m.id)) continue;
+      if (streak === m.days) {
         const messages = {
-          streak_3: `🔥 ${latest.label} ধরে লগ করছেন! চালিয়ে যান!`,
-          streak_7: `🔥 ${latest.label} ধরে লগ! এখন প্যাটার্ন দেখা যাচ্ছে!`,
-          streak_14: `🔥 ${latest.label}! আপনি দারুণ মা!`,
-          streak_30: `🏆 ${latest.label}! অসাধারণ!`,
+          streak_3: `🔥 ${m.label} ধরে লগ করছেন! চালিয়ে যান!`,
+          streak_7: `🔥 ${m.label} ধরে লগ! এখন প্যাটার্ন দেখা যাচ্ছে!`,
+          streak_14: `🔥 ${m.label}! আপনি দারুণ মা!`,
+          streak_30: `🏆 ${m.label}! অসাধারণ!`,
         };
         achieved.push({
-          id: latest.id,
+          id: m.id,
           type: 'streak',
-          icon: latest.days === 30 ? '🏆' : '🔥',
-          title: messages[latest.id],
+          icon: m.days === 30 ? '🏆' : '🔥',
+          title: messages[m.id],
           subtitle: `${toBengaliNumber(streak)} দিন ধরে একটানা লগ করছেন`,
-          shareText: generateShareText({ type: 'streak', detail: `${latest.label} ধরে একটানা লগ` }, baby),
+          shareText: generateShareText({ type: 'streak', detail: `${m.label} ধরে একটানা লগ` }, baby),
           celebratedAt: null,
         });
       }
     }
 
     // --- Vaccine milestones ---
+    // Only show if vaccine was marked complete within 3 days
     if (vaccineStatus && epiSchedule) {
       const completedCount = Object.values(vaccineStatus).filter(v => v.completed).length;
       const totalVaccines = epiSchedule.length;
 
       for (const vaccine of epiSchedule) {
-        if (vaccineStatus[vaccine.id]?.completed) {
-          const id = `vaccine_${vaccine.id}`;
-          if (!celebrated.includes(id)) {
+        const status = vaccineStatus[vaccine.id];
+        if (!status?.completed) continue;
+
+        const id = `vaccine_${vaccine.id}`;
+        if (celebrated.includes(id)) continue;
+
+        const completedDate = status.completedDate;
+        if (completedDate) {
+          const daysSinceCompleted = dayjs().diff(dayjs(completedDate), 'day');
+          if (daysSinceCompleted <= RECENCY_WINDOW) {
             achieved.push({
               id,
               type: 'vaccine',
@@ -191,36 +179,22 @@ export async function checkMilestones(baby, logs, vaccineStatus, motherProfile, 
     }
 
     // --- Recovery milestones (C-section only) ---
+    // Only show if postpartum day is within [milestone_day, milestone_day + 3]
     if (motherProfile?.delivery_type === 'csection') {
-      const achievedRecovery = RECOVERY_MILESTONES.filter(m => ageDays >= m.days);
-      if (achievedRecovery.length > 0) {
-        const olderRecovery = achievedRecovery.slice(0, -1);
-        for (const old of olderRecovery) {
-          if (!celebrated.includes(old.id)) {
-            celebrated.push(old.id);
-            autoMarkIds.push(old.id);
-          }
-        }
-
-        const latest = achievedRecovery[achievedRecovery.length - 1];
-        if (!celebrated.includes(latest.id)) {
+      for (const m of RECOVERY_MILESTONES) {
+        if (celebrated.includes(m.id)) continue;
+        if (ageDays >= m.days && ageDays <= m.days + RECENCY_WINDOW) {
           achieved.push({
-            id: latest.id,
+            id: m.id,
             type: 'recovery',
             icon: '🩹',
-            title: latest.title,
-            subtitle: latest.subtitle,
-            shareText: generateShareText({ type: 'recovery', detail: latest.title }, baby),
+            title: m.title,
+            subtitle: m.subtitle,
+            shareText: generateShareText({ type: 'recovery', detail: m.title }, baby),
             celebratedAt: null,
           });
         }
       }
-    }
-
-    // Persist auto-celebrated milestones to AsyncStorage
-    if (autoMarkIds.length > 0) {
-      AsyncStorage.setItem(CELEBRATED_KEY, JSON.stringify(celebrated))
-        .catch(e => console.log('Auto-celebrate save error:', e.message));
     }
 
     return achieved;
@@ -280,7 +254,7 @@ export async function getCelebratedMilestones() {
  */
 export function generateShareText(milestone, baby) {
   const babyName = baby?.name || 'শিশু';
-  return `👶 ${babyName} আজ ${milestone.detail}! ✅ | হাফসা স্বাস্থ্য অ্যাপ দিয়ে ট্র্যাক করছি। ডাউনলোড করুন: https://hafsashastho.app`;
+  return `👶 ${babyName} আজ ${milestone.detail}! ✅ | হাফসা স্বাস্থ্য অ্যাপ দিয়ে ট্র্যাক করছি। ডাউনলোড করুন: https://nahltech.com/product/hafsa-sastho`;
 }
 
 // ============================================================
