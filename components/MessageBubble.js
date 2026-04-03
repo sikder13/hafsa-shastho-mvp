@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncAIInteraction, updateAIFeedback } from '../services/supabaseService';
+import { syncAIInteraction, updateAIFeedback } from '../services/supabaseService';
 import { formatTimeBengali } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
 
@@ -61,6 +62,10 @@ export default function MessageBubble({ message, isUser, previousUserMessage }) 
         } else {
           log.push(feedbackEntry);
         }
+
+        // Sync feedback to Supabase ai_interactions
+        // Find the matching interaction by content and update its feedback
+        syncFeedbackToCloud(message.content, newRating);
 
         // Sync feedback to Supabase ai_interactions
         // Find the matching interaction by content and update its feedback
