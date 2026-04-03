@@ -6,7 +6,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { syncAIInteraction, updateAIFeedback } from '../services/supabaseService';
-import { syncAIInteraction, updateAIFeedback } from '../services/supabaseService';
 import { formatTimeBengali } from '../utils/helpers';
 import { COLORS } from '../utils/constants';
 
