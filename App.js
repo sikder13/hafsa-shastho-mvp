@@ -12,11 +12,17 @@ import AuthScreen from './screens/AuthScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import TabNavigator from './navigation/TabNavigator';
 import { supabase } from './supabaseClient';
+import * as Notifications from 'expo-notifications';
 import {
   processSyncQueue,
   createTrialSubscription,
   recordConsent,
 } from './services/supabaseService';
+import {
+  setupNotificationCategories,
+  requestPermissions,
+  handleNotificationResponse,
+} from './services/notificationService';
 
 function AppContent() {
   const {
@@ -64,6 +70,20 @@ function AppContent() {
     );
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Set up notifications on mount
+  useEffect(() => {
+    try {
+      setupNotificationCategories();
+      requestPermissions();
+    } catch (e) {
+      console.log('Notification setup error:', e.message);
+    }
+
+    const responseListener = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+
+    return () => responseListener.remove();
   }, []);
 
   // Show loading while checking auth

@@ -14,6 +14,7 @@ import { EPI_CENTERS, AREAS } from '../data/epiCenters';
 import { toBengaliNumber, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 import { syncVaccineRecord } from '../services/supabaseService';
+import { scheduleVaccineReminder } from '../services/notificationService';
 import { useApp } from '../context/AppContext';
 
 export default function VaccineScreen({ baby, onBack }) {
@@ -26,7 +27,7 @@ export default function VaccineScreen({ baby, onBack }) {
   useEffect(() => {
     loadVaccineStatus();
     checkUserArea();
-    
+
     // One-time migration
     const migrate = async () => {
       try {
@@ -37,6 +38,23 @@ export default function VaccineScreen({ baby, onBack }) {
     };
     migrate();
   }, [baby.id]);
+
+  // Schedule vaccine reminders when vaccine data loads
+  useEffect(() => {
+    try {
+      BD_EPI_SCHEDULE.forEach(vaccine => {
+        if (vaccineStatus[vaccine.id]?.completed) return;
+
+        const dueDate = new Date(baby.birth_date);
+        dueDate.setDate(dueDate.getDate() + vaccine.ageDays);
+
+        scheduleVaccineReminder(vaccine.nameBangla, dueDate)
+          .catch(e => console.log('Vaccine reminder:', e.message));
+      });
+    } catch (e) {
+      console.log('Vaccine reminder scheduling error:', e.message);
+    }
+  }, [vaccineStatus, baby.birth_date]);
 
   const checkUserArea = async () => {
     try {

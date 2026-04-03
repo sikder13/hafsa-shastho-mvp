@@ -2,7 +2,7 @@
 // Home tab dashboard — Intelligence-driven
 // This screen contains ZERO health logic. It calls intelligenceService and renders what it returns.
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,12 @@ import { getHomeInsights } from '../services/intelligenceService';
 import { toBengaliNumber, getGreeting } from '../utils/helpers';
 import { COLORS, TEXT } from '../utils/constants';
 import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
+import {
+  scheduleFeedAlert,
+  scheduleCheckInReminder,
+  scheduleEveningSummary,
+  scheduleMorningCatchup,
+} from '../services/notificationService';
 
 // ============================================================
 // BENGALI TEXT FORMATTERS — translate structured data to display text
@@ -131,6 +137,32 @@ export default function HomeScreen() {
   } = useApp();
 
   const navigation = useNavigation();
+
+  // Schedule notifications when HomeScreen mounts / data changes
+  useEffect(() => {
+    try {
+      // Feed alert — check if last feed was > 4 hours ago
+      if (baby?.name && logs?.feed?.length > 0) {
+        const lastFeedTime = logs.feed[0]?.timestamp;
+        if (lastFeedTime) {
+          scheduleFeedAlert(baby.name, lastFeedTime).catch(e => console.log('Feed alert:', e.message));
+        }
+      }
+
+      // Check-in reminder — fires at 8 PM if no check-in today
+      scheduleCheckInReminder().catch(e => console.log('Check-in reminder:', e.message));
+
+      // Evening summary — fires at 9 PM daily
+      scheduleEveningSummary().catch(e => console.log('Evening summary:', e.message));
+
+      // Morning catchup — fires at 8 AM daily
+      if (baby?.name) {
+        scheduleMorningCatchup(baby.name).catch(e => console.log('Morning catchup:', e.message));
+      }
+    } catch (e) {
+      console.log('Notification scheduling error:', e.message);
+    }
+  }, [baby?.name, logs?.feed, todayMotherLog]);
 
   // Call the brain ONCE — get all insights
   const insights = useMemo(() => {
