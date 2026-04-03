@@ -2,13 +2,14 @@
 // Home tab dashboard — Intelligence-driven
 // This screen contains ZERO health logic. It calls intelligenceService and renders what it returns.
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
-  Alert
+  Alert,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
@@ -17,6 +18,7 @@ import { getHomeInsights, getPredictiveCard } from '../services/intelligenceServ
 import { toBengaliNumber, getGreeting } from '../utils/helpers';
 import { COLORS, TEXT } from '../utils/constants';
 import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
+import { checkMilestones, markAsCelebrated } from '../services/milestoneService';
 import {
   scheduleFeedAlert,
   scheduleCheckInReminder,
@@ -190,6 +192,38 @@ export default function HomeScreen() {
     }
   }, [tonightCard]);
 
+  // Milestone celebration — check for uncelebrated milestones
+  const [uncelebratedMilestone, setUncelebratedMilestone] = useState(null);
+
+  useEffect(() => {
+    try {
+      checkMilestones(baby, logs, vaccineStatus, motherProfile, growthMeasurements, BD_EPI_SCHEDULE)
+        .then(milestoneList => {
+          setUncelebratedMilestone(milestoneList.length > 0 ? milestoneList[0] : null);
+        })
+        .catch(e => console.log('Milestone check:', e.message));
+    } catch (e) {
+      console.log('Milestone check error:', e.message);
+    }
+  }, [baby, logs, vaccineStatus, motherProfile, growthMeasurements]);
+
+  const handleCelebrate = useCallback(async (milestoneId) => {
+    try {
+      await markAsCelebrated(milestoneId);
+      setUncelebratedMilestone(null);
+    } catch (e) {
+      console.log('Celebrate error:', e.message);
+    }
+  }, []);
+
+  const handleShareMilestone = useCallback(async (shareText) => {
+    try {
+      await Share.share({ message: shareText });
+    } catch (e) {
+      console.log('Share error:', e.message);
+    }
+  }, []);
+
   const handleResetApp = () => {
     Alert.alert(
       '⚠️ রিসেট করুন',
@@ -255,6 +289,38 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* MILESTONE CELEBRATION — from milestoneService */}
+        {uncelebratedMilestone && (
+          <View style={{
+            backgroundColor: '#E8F5E9', borderRadius: 16, padding: 16, marginBottom: 20,
+            borderWidth: 2, borderColor: '#4CAF50',
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 28, marginRight: 10 }}>{uncelebratedMilestone.icon}</Text>
+              <Text style={{ flex: 1, fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark }}>
+                {uncelebratedMilestone.title}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 14, lineHeight: 20 }}>
+              {uncelebratedMilestone.subtitle}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => handleCelebrate(uncelebratedMilestone.id)}
+                style={{ flex: 1, backgroundColor: COLORS.primary, padding: 12, borderRadius: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>🎉 দেখেছি!</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleShareMilestone(uncelebratedMilestone.shareText)}
+                style={{ flex: 1, backgroundColor: 'white', padding: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: COLORS.primary }}
+              >
+                <Text style={{ color: COLORS.primary, fontSize: 14, fontWeight: 'bold' }}>📱 শেয়ার করুন</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* INTELLIGENT ALERTS — from rules engine */}
         {visibleAlerts.length > 0 && (
