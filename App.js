@@ -11,6 +11,7 @@ import { StatusBar } from 'expo-status-bar';
 import AuthScreen from './screens/AuthScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
 import TabNavigator from './navigation/TabNavigator';
+import ErrorBoundary from './components/ErrorBoundary';
 import { supabase } from './supabaseClient';
 import * as Notifications from 'expo-notifications';
 import {
@@ -141,7 +142,9 @@ function AppContent() {
 export default function App() {
   return (
     <AppProvider>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </AppProvider>
   );
 }
