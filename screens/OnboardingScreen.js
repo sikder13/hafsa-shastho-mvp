@@ -14,7 +14,8 @@ import {
   Animated,
   Dimensions,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatDateInput, calculateAge, toBengaliNumber, getRecoveryStage } from '../utils/helpers';
@@ -297,7 +298,11 @@ export default function OnboardingScreen({ onComplete }) {
             {/* ============ STEP 0: WELCOME ============ */}
             {currentStep === 0 && (
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={{ fontSize: 60, marginBottom: 24 }}>💚</Text>
+                <Image
+                  source={require('../assets/hafsa-logo.png')}
+                  style={{ width: 80, height: 92, alignSelf: 'center', marginBottom: 16 }}
+                  resizeMode="contain"
+                />
 
                 <Text style={{
                   fontSize: 32,

@@ -14,7 +14,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../supabaseClient';
@@ -91,7 +92,7 @@ export default function AuthScreen() {
         >
           {/* Logo / Branding */}
           <View style={{ alignItems: 'center', marginBottom: 40 }}>
-            <Text style={{ fontSize: 56, marginBottom: 16 }}>💚</Text>
+            <Image source={require('../assets/hafsa-logo.png')} style={{ width: 80, height: 92, alignSelf: 'center', marginBottom: 12 }} resizeMode="contain" />
             <Text style={{
               fontSize: 32,
               fontWeight: 'bold',

@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -270,7 +271,7 @@ export default function HomeScreen() {
         }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={{ fontSize: 36, marginRight: 12 }}>💚</Text>
+              <Image source={require('../assets/hafsa-logo.png')} style={{ width: 36, height: 42, marginRight: 12 }} resizeMode="contain" />
               <Text style={{ fontSize: 20, fontWeight: 'bold', color: COLORS.primaryDark }}>
                 হাফসা আপা বলছে
               </Text>
