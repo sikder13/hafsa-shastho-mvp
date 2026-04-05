@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // components/MessageBubble.js
 // Reusable message bubble with RLHF feedback (thumbs up/down on AI responses)
 // Feedback stored for future Bengali LLM fine-tuning

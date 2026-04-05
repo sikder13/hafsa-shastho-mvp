@@ -22,7 +22,7 @@
 ## 2. PROJECT ORIGIN STORY & PIVOTS
 
 ### Pre-March 2026: Initial Build (in another Claude conversation)
-- Original MVP was built using Cursor with Claude-generated prompts
+- Original MVP was built with Claude Code
 - Had basic screens: HomeScreen, DailyLogScreen, VaccineScreen, GrowthScreen, BabyProfileScreen, AuthScreen
 - ChatTestScreen was referenced but MISSING from codebase (would crash if opened)
 - No mother health tracking at all
@@ -152,7 +152,7 @@ The expert review completely restructured the build order:
 | Voice | expo-speech-recognition (Bengali bn-BD STT) |
 | Build | EAS (Expo Application Services) for cloud builds |
 | Dev Environment | Linux (Ubuntu), testing via Expo Go on physical iPhone |
-| IDE | Cursor with Claude Code |
+| IDE | Claude Code CLI |
 
 ---
 
@@ -423,7 +423,7 @@ All AI-powered apps fail when offline. Local LLMs don't speak Bengali well enoug
 
 ## 11. HOW TO WORK WITH THIS CODEBASE
 
-### For Claude Code in Cursor:
+### For Claude Code:
 1. **Read this file first** — understand the architecture before making changes
 2. **Check the relevant rules file** before modifying any health logic (services/rules/)
 3. **Never put medical logic in UI** — screens only render data from Intelligence Service
@@ -434,7 +434,7 @@ All AI-powered apps fail when offline. Local LLMs don't speak Bengali well enoug
 - UD prefers **complete file rewrites** over targeted edits when instructions are complex
 - All code deliveries should include **test plans and git commit/push instructions**
 - Phases completed sequentially — one phase fully done before next begins
-- Pre-planning in Claude conversation → implementation in Cursor/Claude Code
+- Pre-planning in Claude conversation → implementation in Claude Code
 
 ### When in Doubt:
 - Medical assessment logic → `services/rules/` (deterministic JavaScript)

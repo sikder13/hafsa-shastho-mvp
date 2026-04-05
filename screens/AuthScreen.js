@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // screens/AuthScreen.js
 // Authentication — Email/Password for MVP testing
 // Production: Will add phone OTP when Twilio Message Service is configured
@@ -220,6 +227,10 @@ export default function AuthScreen() {
             lineHeight: 18,
           }}>
             অ্যাকাউন্ট তৈরি করে আপনি আমাদের{'\n'}ব্যবহারের শর্তাবলী ও গোপনীয়তা নীতিতে সম্মত হচ্ছেন।
+          </Text>
+
+          <Text style={{ fontSize: 11, color: '#BDBDBD', textAlign: 'center', marginTop: 24 }}>
+            Nahl Technologies Inc.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

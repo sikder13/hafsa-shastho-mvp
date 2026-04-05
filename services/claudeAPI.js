@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // services/claudeAPI.js
 // Claude API with TRUE streaming for React Native
 // Uses XMLHttpRequest (not fetch) because RN fetch doesn't support ReadableStream

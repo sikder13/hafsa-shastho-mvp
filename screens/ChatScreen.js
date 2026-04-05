@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // screens/ChatScreen.js
 // Hafsa Aapa AI Chat — STREAMING responses + full context
 // Words appear as generated — first word in 1-2 seconds

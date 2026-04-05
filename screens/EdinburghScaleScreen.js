@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // screens/EdinburghScaleScreen.js
 // Culturally adapted Edinburgh Postnatal Depression Scale (EPDS) for Bengali mothers
 // Based on validated Bangla EPDS (Gausia et al., 2007; Maity et al., 2015)

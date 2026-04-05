@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // components/ErrorBoundary.js
 // Catches JavaScript errors in child components and shows a friendly Bengali fallback UI.
 // Must be a class component — React hooks do not support error boundaries.

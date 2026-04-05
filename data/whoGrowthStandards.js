@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // data/whoGrowthStandards.js
 // WHO Child Growth Standards — Weight-for-age (0-24 months)
 // Source: WHO Multicentre Growth Reference Study (2006)

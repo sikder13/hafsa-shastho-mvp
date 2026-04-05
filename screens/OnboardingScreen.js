@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // screens/OnboardingScreen.js
 // Multi-step onboarding: Welcome → Baby Info → Mother Info → Personalized Welcome
 // First impression of the app — must feel warm, caring, and professional

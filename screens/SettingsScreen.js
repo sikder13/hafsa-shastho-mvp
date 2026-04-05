@@ -1,3 +1,10 @@
+/**
+ * Hafsa Sastho (হাফসা স্বাস্থ্য)
+ * Bangladesh's First AI Companion for Postpartum and Early Childhood Care
+ * Copyright © 2026 Nahl Technologies Inc. All rights reserved.
+ *
+ * @author Udaay Sikder — Co-Founder & Dev
+ */
 // screens/SettingsScreen.js
 // Settings + Profile Edit — account management, app info, data controls
 
@@ -9,7 +16,8 @@ import {
   ScrollView,
   TextInput,
   Alert,
-  Modal
+  Modal,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
@@ -571,6 +579,22 @@ export default function SettingsScreen({ onBack }) {
             অ্যাকাউন্ট মুছে ফেলুন
           </Text>
         </TouchableOpacity>
+
+        {/* NAHL BRANDING */}
+        <View style={{ borderTopWidth: 1, borderTopColor: '#E0E0E0', marginVertical: 20 }} />
+        <View style={{ alignItems: 'center', marginBottom: 40 }}>
+          <Text style={{ fontSize: 11, color: '#BDBDBD', marginBottom: 4 }}>
+            A Nahl Technologies Inc. product
+          </Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://nahltech.com')}>
+            <Text style={{ fontSize: 11, color: '#9E9E9E', textDecorationLine: 'underline' }}>
+              nahltech.com
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 10, color: '#BDBDBD', marginTop: 4 }}>
+            v1.0.0-beta
+          </Text>
+        </View>
 
       </ScrollView>
     </SafeAreaView>
