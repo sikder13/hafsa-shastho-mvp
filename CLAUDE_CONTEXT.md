@@ -7,7 +7,9 @@
 
 ## 1. WHAT IS THIS PROJECT?
 
-**Hafsa Shastho** (হাফসা স্বাস্থ্য) is Bangladesh's first AI-powered maternal and infant health app. It tracks BOTH mother's postpartum health AND baby's health in Bengali. The AI companion "Hafsa Aapa" (হাফসা আপা) is a caring elder sister who knows everything about the specific mother and baby.
+**Hafsa Sastho** (হাফসা স্বাস্থ্য) is Bangladesh's first AI-powered maternal and infant health app. It tracks BOTH mother's postpartum health AND baby's health in Bengali. The AI companion "Hafsa Aapa" (হাফসা আপা) is a caring elder sister who knows everything about the specific mother and baby.
+
+> **NOTE:** The canonical English spelling is **"Hafsa Sastho"** (not "Shastho"). The codebase folder and GitHub repo still use the old spelling `hafsa-shastho-mvp` — do NOT rename these as it would break build configurations. The Bengali name হাফসা স্বাস্থ্য is unchanged.
 
 **Parent Company:** Nahl Technologies Inc. based in Indiana, USA
 **Founder:** Udaay Sikder (solo developer, based in Indiana, USA), Mohieminul Islam Khan (Co-founder, based in Indiana, USA)
@@ -281,6 +283,14 @@ Exclusion rules prevent false positives for questions, negations, future tense.
 ### [DECISION] Free for 0-10K Users
 No subscription for first 3 months. Then ৳49/month ($0.45) via bKash/Nagad web link.
 No in-app ads in chat or check-in screens (ever). Minimal ads on HomeScreen post-beta only.
+
+### [DECISION] API Key Proxy (Supabase Edge Function)
+The ANTHROPIC_API_KEY lives ONLY on the server (Supabase Edge Function `hafsa-ai`).
+The app calls `https://unnmjrrpqftpcknabqwq.supabase.co/functions/v1/hafsa-ai` with the Supabase anon key.
+The Edge Function calls Claude API with the real key stored as a Supabase secret.
+claudeAPI.js does NOT import ANTHROPIC_API_KEY from @env. The .env file keeps the key as backup only.
+To update the API key: `supabase secrets set ANTHROPIC_API_KEY=new-key-here`
+To redeploy the function: `supabase functions deploy hafsa-ai`
 
 ---
 
