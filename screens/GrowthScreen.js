@@ -13,7 +13,8 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  Dimensions
+  Dimensions,
+  Share
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -562,7 +563,15 @@ export default function GrowthScreen({ baby, onBack }) {
             </View>
             
             <TouchableOpacity
-              onPress={() => Alert.alert('শেয়ার করুন', 'এই মাইলস্টোন পরিবারের সাথে শেয়ার করার ফিচার শীঘ্রই আসছে! 💚')}
+              onPress={async () => {
+                try {
+                  const milestoneKg = checkMilestone(measurements[0].weight);
+                  const shareText = `👶 ${baby.name} আজ ${toBengaliNumber(milestoneKg)} কেজি হয়েছে! ✅ | হাফসা স্বাস্থ্য অ্যাপ দিয়ে ট্র্যাক করছি। ডাউনলোড করুন: https://nahltech.com/product/hafsa-sastho`;
+                  await Share.share({ message: shareText });
+                } catch (e) {
+                  console.log('Share error:', e.message);
+                }
+              }}
               style={{
                 marginTop: 16,
                 backgroundColor: COLORS.primary,

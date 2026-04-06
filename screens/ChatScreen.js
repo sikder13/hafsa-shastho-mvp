@@ -197,7 +197,7 @@ export default function ChatScreen({ baby, onBack }) {
 
       // Auto-log from user message (question-aware)
       // Pass current logs so auto-logger works with fresh data
-      const autoLogResult = await processAutoLog(userMessage, baby.id, logs);
+      const autoLogResult = await processAutoLog(userMessage, baby.id, logs, baby.ageDays || Math.floor((Date.now() - new Date(baby.birth_date).getTime()) / 86400000));
 
      // Sync auto-logged data to AppContext so HomeScreen and BabyHub see it
      if (autoLogResult.logged && autoLogResult.updatedLogs) {

@@ -69,7 +69,7 @@ function isQuestion(text) {
  * @param {string} babyId - Baby's ID for storage
  * @returns {Promise<Object>} - {logged, activities, error?}
  */
-export async function processAutoLog(messageText, babyId, currentLogs) {
+export async function processAutoLog(messageText, babyId, currentLogs, babyAgeDays) {
   try {
     // CRITICAL: If this is a question, DO NOT auto-log
     if (isQuestion(messageText)) {
@@ -83,6 +83,19 @@ export async function processAutoLog(messageText, babyId, currentLogs) {
       return { logged: false, activities: [] };
     }
 
+    // Filter out food logs if baby is too young for solid food (under 150 days / ~5 months)
+    const filteredActivities = detectedActivities.filter(activity => {
+      if (activity.type === 'food' && babyAgeDays && babyAgeDays < 150) {
+        console.log('🚫 Food log skipped — baby is only', babyAgeDays, 'days old (need 150+)');
+        return false;
+      }
+      return true;
+    });
+
+    if (filteredActivities.length === 0) {
+      return { logged: false, activities: [] };
+    }
+
     // Use current logs from AppContext if available, otherwise load from storage
     const logs = currentLogs || await loadLogs(babyId);
     const updatedLogs = {
@@ -93,7 +106,7 @@ export async function processAutoLog(messageText, babyId, currentLogs) {
     };
     const loggedActivities = [];
 
-    for (const activity of detectedActivities) {
+    for (const activity of filteredActivities) {
       const newLog = {
         id: Date.now() + Math.random(),
         timestamp: new Date().toISOString(),

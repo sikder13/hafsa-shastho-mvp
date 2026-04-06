@@ -20,14 +20,24 @@ export default function MotherStack() {
       </Stack.Screen>
       <Stack.Screen name="Edinburgh">
         {(props) => (
-          <EdinburghScaleScreen
-            {...props}
-            onBack={() => props.navigation.goBack()}
-            onComplete={() => props.navigation.goBack()}
-          />
+          <EdinburghScreenWrapper navigation={props.navigation} />
         )}
       </Stack.Screen>
     </Stack.Navigator>
+  );
+}
+
+function EdinburghScreenWrapper({ navigation }) {
+  const parentNav = useNavigation();
+
+  return (
+    <EdinburghScaleScreen
+      onBack={() => navigation.goBack()}
+      onComplete={() => {
+        navigation.goBack();
+        parentNav.navigate('HomeTab');
+      }}
+    />
   );
 }
 
