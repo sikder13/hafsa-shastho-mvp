@@ -19,7 +19,7 @@
 //
 // Safe import: Works in both Expo Go (graceful fallback) and dev builds (full functionality)
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 
 // Safely import native module — won't exist in Expo Go
@@ -36,6 +36,9 @@ try {
 
 // Bengali locale for Bangladesh
 const BENGALI_LOCALE = 'bn-BD';
+
+// Max voice recording duration (exported for ChatScreen countdown UI)
+export const VOICE_MAX_SECONDS = 30;
 
 // Fallback locale if Bengali BD not available on device
 const FALLBACK_LOCALE = 'bn-IN';
@@ -77,14 +80,24 @@ export function useVoiceInput() {
   const [finalText, setFinalText] = useState('');
   const [error, setError] = useState(null);
   const [isAvailable, setIsAvailable] = useState(!!ExpoSpeechRecognitionModule);
+  const timeoutRef = useRef(null);
 
   // Handle real-time partial results — text appears as mother speaks
   useSpeechRecognitionEvent('result', (event) => {
     const transcript = event.results[0]?.transcript || '';
 
     if (event.isFinal) {
-      // Final result — confirmed transcription
-      setFinalText(transcript);
+      // Clear auto-stop timeout
+      if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
+
+      // Final result — confirmed transcription (with character limit)
+      const MAX_CHARS = 500;
+      if (transcript.length > MAX_CHARS) {
+        setFinalText(transcript.substring(0, MAX_CHARS));
+        console.log('🎙️ Voice text truncated from', transcript.length, 'to', MAX_CHARS, 'chars');
+      } else {
+        setFinalText(transcript);
+      }
       setPartialText('');
       setIsListening(false);
     } else {
@@ -113,6 +126,7 @@ export function useVoiceInput() {
 
   // Handle end of speech recognition
   useSpeechRecognitionEvent('end', () => {
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     setIsListening(false);
   });
 
@@ -148,6 +162,14 @@ export function useVoiceInput() {
       });
 
       setIsListening(true);
+
+      // Auto-stop after 30 seconds to prevent long recordings
+      timeoutRef.current = setTimeout(() => {
+        if (ExpoSpeechRecognitionModule) {
+          try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
+        }
+        setIsListening(false);
+      }, VOICE_MAX_SECONDS * 1000);
     } catch (err) {
       console.error('Start listening error:', err);
 
@@ -160,6 +182,14 @@ export function useVoiceInput() {
           maxAlternatives: 1,
         });
         setIsListening(true);
+
+        // Auto-stop after 30 seconds to prevent long recordings
+        timeoutRef.current = setTimeout(() => {
+          if (ExpoSpeechRecognitionModule) {
+            try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
+          }
+          setIsListening(false);
+        }, VOICE_MAX_SECONDS * 1000);
       } catch (fallbackErr) {
         console.error('Fallback locale also failed:', fallbackErr);
         setError('এই ডিভাইসে বাংলা ভয়েস সাপোর্ট নেই।');
@@ -172,6 +202,7 @@ export function useVoiceInput() {
    * Stop listening and get final result
    */
   const stopListening = useCallback(async () => {
+    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
     try {
       if (ExpoSpeechRecognitionModule) await ExpoSpeechRecognitionModule.stop();
     } catch (err) {
