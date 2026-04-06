@@ -155,7 +155,7 @@ export async function scheduleFeedAlert(babyName, lastFeedTime) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: '\uD83C\uDF7C দুধের সময়',
-        body: `${babyName} শেষ দুধ ${toBengaliNumber(hours)} ঘন্টা আগে।`,
+        body: `${babyName}কে শেষ দুধ দেওয়া হয়েছে ${toBengaliNumber(hours)} ঘন্টা আগে।`,
         categoryIdentifier: CATEGORY_FEED_ALERT,
         data: { type: 'feed_alert', babyName },
         sound: 'default',
@@ -187,7 +187,7 @@ export async function scheduleCheckInReminder() {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: '\uD83D\uDC9A চেক-ইন করুন',
-        body: 'আজ চেক-ইন হয়নি। আপনি কেমন আছেন?',
+        body: 'আজ আপনার চেক-ইন হয়নি। কেমন আছেন আপু? 💚',
         data: { type: 'checkin_reminder' },
         sound: 'default',
       },
@@ -221,7 +221,7 @@ export async function scheduleEveningSummary() {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: '\uD83D\uDCCA আজকের সারাংশ',
-        body: 'আজকের দিনটি কেমন গেল? সারাংশ দেখুন।',
+        body: 'আজকের দিনটা কেমন গেল? সারাংশ দেখে নিন।',
         data: { type: 'evening_summary' },
         sound: 'default',
       },
@@ -258,7 +258,7 @@ export async function scheduleMorningCatchup(babyName) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'সুপ্রভাত!',
-        body: `গতরাত কয়বার ${babyName} দুধ দিয়েছেন?`,
+        body: `গতরাত কয়বার ${babyName}কে দুধ দিয়েছেন?`,
         categoryIdentifier: CATEGORY_MORNING_CATCHUP,
         data: { type: 'morning_catchup', babyName },
         sound: 'default',
@@ -293,7 +293,7 @@ export async function scheduleWeeklyReport() {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: '\uD83D\uDCCB সাপ্তাহিক রিপোর্ট',
-        body: 'এই সপ্তাহের রিপোর্ট তৈরি।',
+        body: 'এই সপ্তাহের রিপোর্ট তৈরি হয়েছে। দেখে নিন!',
         data: { type: 'weekly_report' },
         sound: 'default',
       },
@@ -339,7 +339,7 @@ export async function scheduleEPDSReminder(lastAssessmentDate) {
     const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: '\uD83D\uDC9A মানসিক স্বাস্থ্য',
-        body: 'মানসিক স্বাস্থ্য চেক-আপের সময়।',
+        body: 'মানসিক স্বাস্থ্য চেক-আপের সময় হয়েছে। নিজের যত্ন নিন 💚',
         data: { type: 'epds_reminder' },
         sound: 'default',
       },

@@ -112,13 +112,43 @@ export default function ChatScreen({ baby, onBack }) {
       setSuggestedQuestions(legacyContext.suggestedQuestions);
     }
 
+    // Build daily welcome system message (shows once per day)
+    const today = new Date().toISOString().split('T')[0];
+    const welcomeKey = 'chat_welcome_' + today;
+    let dailyWelcome = null;
+
+    try {
+      const shown = await AsyncStorage.getItem(welcomeKey);
+      if (!shown) {
+        dailyWelcome = {
+          id: 'daily-welcome-' + today,
+          role: 'assistant',
+          content: 'আসসালামু আলাইকুম! 💚 আজ আপনি হাফসা আপার সাথে ১০টি মেসেজ পাঠাতে পারবেন + ২টি বোনাস! দুধ, ঘুম, ডায়াপার লগ করতে শিশু ট্যাবে যান — সেগুলো সীমাহীন।',
+          timestamp: new Date().toISOString(),
+          isSystemMessage: true,
+        };
+        await AsyncStorage.setItem(welcomeKey, 'true');
+        // Clean up yesterday's key
+        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+        AsyncStorage.removeItem('chat_welcome_' + yesterday).catch(() => {});
+      }
+    } catch (e) {
+      // Ignore welcome message errors
+    }
+
     // Load saved conversation (if from today)
     try {
       const saved = await AsyncStorage.getItem('chat_messages');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.date === new Date().toDateString() && parsed.messages?.length > 0) {
-          setMessages(parsed.messages);
+          const msgs = parsed.messages;
+          // Prepend daily welcome if not already present
+          if (dailyWelcome && !msgs.some(m => m.id === dailyWelcome.id)) {
+            setMessages([dailyWelcome, ...msgs]);
+          } else {
+            setMessages(msgs);
+          }
           return;
         }
       }
@@ -128,14 +158,18 @@ export default function ChatScreen({ baby, onBack }) {
 
     // No saved conversation — show fresh opening message
     const openingText = buildOpeningMessage(legacyContext);
+    const initialMessages = [];
 
-    setMessages([{
+    if (dailyWelcome) initialMessages.push(dailyWelcome);
+    initialMessages.push({
       id: Date.now(),
       role: 'assistant',
       content: openingText,
       timestamp: new Date(),
       isWelcome: true
-    }]);
+    });
+
+    setMessages(initialMessages);
   };
 
   const scrollToBottom = useCallback(() => {
@@ -398,18 +432,26 @@ export default function ChatScreen({ baby, onBack }) {
 
       {/* USAGE COUNTER */}
       {dailyUsage > 0 && (
-        <Text style={{
-          textAlign: 'center',
-          fontSize: 11,
-          paddingVertical: 4,
-          color: dailyUsage >= 12 ? '#E74C3C' : dailyUsage > 10 ? COLORS.primary : '#999',
+        <View style={{
+          backgroundColor: (dailyUsage >= 10 && dailyUsage < 12) ? '#FFF3E0' : dailyUsage >= 12 ? '#FFEBEE' : '#F5F5F5',
+          borderRadius: 8,
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          marginVertical: 4,
+          alignSelf: 'center',
         }}>
-          {dailyUsage >= 12
-            ? 'আজকের মেসেজ শেষ'
-            : dailyUsage > 10
-              ? `বোনাস ${toBengaliNumber(12 - dailyUsage)}/২ বাকি 🎁`
-              : `আজ ${toBengaliNumber(10 - dailyUsage)}/১০ মেসেজ বাকি`}
-        </Text>
+          <Text style={{
+            textAlign: 'center',
+            fontSize: 13,
+            color: dailyUsage >= 12 ? '#E74C3C' : dailyUsage > 10 ? COLORS.primary : '#666',
+          }}>
+            {dailyUsage >= 12
+              ? 'আজকের মেসেজ শেষ'
+              : dailyUsage > 10
+                ? `বোনাস ${toBengaliNumber(12 - dailyUsage)}/২ বাকি 🎁`
+                : `আজ ${toBengaliNumber(10 - dailyUsage)}/১০ মেসেজ বাকি`}
+          </Text>
+        </View>
       )}
 
       {/* MESSAGES */}
@@ -425,16 +467,32 @@ export default function ChatScreen({ baby, onBack }) {
           onContentSizeChange={scrollToBottom}
         >
           {messages.map((msg, index) => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isUser={msg.role === 'user'}
-              previousUserMessage={
-                msg.role === 'assistant' && index > 0
-                  ? messages[index - 1]?.content
-                  : null
-              }
-            />
+            msg.isSystemMessage ? (
+              <View key={msg.id} style={{
+                alignSelf: 'flex-start',
+                backgroundColor: '#F1F8E9',
+                padding: 12,
+                paddingHorizontal: 16,
+                borderRadius: 16,
+                marginBottom: 12,
+                maxWidth: '85%',
+              }}>
+                <Text style={{ fontSize: 13, color: '#555', fontStyle: 'italic', lineHeight: 20 }}>
+                  {msg.content}
+                </Text>
+              </View>
+            ) : (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                isUser={msg.role === 'user'}
+                previousUserMessage={
+                  msg.role === 'assistant' && index > 0
+                    ? messages[index - 1]?.content
+                    : null
+                }
+              />
+            )
           ))}
 
           {/* SUGGESTED QUESTIONS */}

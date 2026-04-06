@@ -66,6 +66,7 @@ const ALERT_DISPLAY = {
   vaccine_overdue: { icon: '💉', color: '#F44336' },
   vaccine_due_today: { icon: '💉', color: '#FF9800' },
   vaccine_due_soon: { icon: '💉', color: '#2196F3' },
+  post_vaccine_care: { icon: '💉', color: '#4CAF50' },
   // Growth alerts
   weight_below_p3: { icon: '📊', color: '#F44336' },
   weight_below_p15: { icon: '📉', color: '#FF9800' },
@@ -108,6 +109,7 @@ function getAlertBengali(alertKey, insights) {
     isolation_depression_risk: `একা সামলাচ্ছেন + মন ভালো নেই — সাহায্য জরুরি`,
     growth_feed_concern: `ওজন কম + খাওয়া কম — মনোযোগ দিন`,
     depression_sleep_crisis: `মানসিক চাপ + ঘুম কম — পেশাদার সাহায্য নিন`,
+    post_vaccine_care: `সম্প্রতি টিকা নিয়েছে — জ্বর বা অস্বস্তি হলে চিন্তা নেই, স্বাভাবিক`,
   };
 
   return map[alertKey] || alertKey;
