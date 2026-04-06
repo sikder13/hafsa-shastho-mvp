@@ -694,3 +694,23 @@ export async function processSyncQueue() {
     return { processed: 0 };
   }
 }
+
+/**
+ * Sync daily AI usage count to Supabase ai_usage table.
+ * @param {string} userId
+ * @param {number} count - chat_questions_today
+ */
+export async function syncAIUsage(userId, count) {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { error } = await supabase.from('ai_usage').upsert({
+      user_id: userId,
+      usage_date: today,
+      chat_questions_today: count,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,usage_date' });
+    if (error) console.log('AI usage sync error:', error.message);
+  } catch (e) {
+    console.log('AI usage sync failed:', e.message);
+  }
+}

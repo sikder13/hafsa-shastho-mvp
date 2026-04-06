@@ -15,9 +15,65 @@
 
 import { CONFIG } from '../utils/constants';
 import { supabase, supabaseAnonKey } from '../supabaseClient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncAIUsage } from './supabaseService';
 
 const EDGE_FUNCTION_URL = 'https://unnmjrrpqftpcknabqwq.supabase.co/functions/v1/hafsa-ai';
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+
+// ============================================================
+// RATE LIMITING — 10 messages + 2 bonus per 24 hours
+// ============================================================
+
+const DAILY_LIMIT = 10;
+const BONUS_LIMIT = 2;
+const TOTAL_LIMIT = DAILY_LIMIT + BONUS_LIMIT; // 12
+
+async function checkAndIncrementUsage() {
+  const today = new Date().toISOString().split('T')[0];
+  const key = 'ai_usage_' + today;
+
+  try {
+    const stored = await AsyncStorage.getItem(key);
+    const count = stored ? parseInt(stored, 10) : 0;
+
+    if (count >= TOTAL_LIMIT) {
+      return { allowed: false, count, isBonus: false, limitReached: true };
+    }
+
+    const newCount = count + 1;
+    await AsyncStorage.setItem(key, newCount.toString());
+
+    // Clean up yesterday's key (prevent AsyncStorage bloat)
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    AsyncStorage.removeItem('ai_usage_' + yesterday).catch(() => {});
+
+    return {
+      allowed: true,
+      count: newCount,
+      isBonus: newCount > DAILY_LIMIT,
+      bonusJustUnlocked: count === DAILY_LIMIT,
+      remaining: TOTAL_LIMIT - newCount,
+      limitReached: false,
+    };
+  } catch (e) {
+    return { allowed: true, count: 0, isBonus: false, limitReached: false, remaining: TOTAL_LIMIT };
+  }
+}
+
+/**
+ * Read current daily usage count without incrementing.
+ */
+export async function getDailyUsageCount() {
+  const today = new Date().toISOString().split('T')[0];
+  const key = 'ai_usage_' + today;
+  try {
+    const stored = await AsyncStorage.getItem(key);
+    return stored ? parseInt(stored, 10) : 0;
+  } catch (e) {
+    return 0;
+  }
+}
 
 // ============================================================
 // STREAMING via XMLHttpRequest (works in React Native)
@@ -53,8 +109,26 @@ export function streamMessageToClaude(messages, systemPrompt, onChunk, onDone, o
     }
   }, 30000);
 
-  // Verify user is logged in, then call Edge Function with anon key
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  // Check rate limit, verify session, then call Edge Function
+  checkAndIncrementUsage().then(usageCheck => {
+    if (!usageCheck.allowed) {
+      const limitMsg = 'আজকের সব মেসেজ শেষ হয়েছে (১২/১২)। আগামীকাল আবার হাফসা আপা আপনার পাশে থাকবে! 💚\n\nদুধ, ঘুম, ডায়াপার লগ সবসময় কাজ করবে — শিশু ট্যাবে যান।';
+      isComplete = true;
+      clearTimeout(timeoutId);
+      onDone?.({ fullText: limitMsg });
+      return;
+    }
+
+    // Sync usage to Supabase in background
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      if (s?.user?.id) syncAIUsage(s.user.id, usageCheck.count).catch(() => {});
+    }).catch(() => {});
+
+    return supabase.auth.getSession();
+  }).then(result => {
+    if (!result) return; // rate limited — already handled above
+    const { data: { session } } = result;
+
     if (!session?.access_token) {
       onError?.({ message: 'সেশন শেষ হয়ে গেছে। আবার লগইন করুন।', error: 'No session' });
       return;
@@ -191,10 +265,22 @@ export async function sendMessageToClaude(messages, systemPrompt) {
   const limitedMessages = messages.slice(-(CONFIG.maxChatHistory || 10));
 
   try {
+    // Rate limit check
+    const usageCheck = await checkAndIncrementUsage();
+    if (!usageCheck.allowed) {
+      return {
+        success: true,
+        message: 'আজকের সব মেসেজ শেষ হয়েছে (১২/১২)। আগামীকাল আবার হাফসা আপা আপনার পাশে থাকবে! 💚\n\nদুধ, ঘুম, ডায়াপার লগ সবসময় কাজ করবে — শিশু ট্যাবে যান।'
+      };
+    }
+
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       return { success: false, message: 'সেশন শেষ হয়ে গেছে। আবার লগইন করুন।', error: 'No session' };
     }
+
+    // Sync usage to Supabase in background
+    if (session?.user?.id) syncAIUsage(session.user.id, usageCheck.count).catch(() => {});
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), CONFIG.chatResponseTimeout || 15000);

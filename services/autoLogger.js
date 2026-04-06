@@ -153,29 +153,9 @@ function detectActivities(text) {
   const lowerText = text.toLowerCase().trim();
 
   // ============================================================
-  // GLOBAL EXCLUSIONS — if ANY of these match, do NOT auto-log
-  // Prevents false positives from questions, future tense, shopping
-  // ============================================================
-  const EXCLUSIONS = [
-    // Questions (already handled by isQuestion, but double safety)
-    '?', 'কি?', 'কী?', 'কেন?', 'কত?', 'কখন?', 'কিভাবে?',
-    // Future tense / planning
-    'খাওয়াব', 'দিব', 'দিবো', 'করব', 'করবো', 'দেব', 'দেবো',
-    'খাওয়াতে হবে', 'দিতে হবে', 'করতে হবে',
-    // Shopping / buying
-    'কিনতে', 'কিনব', 'কিনলাম', 'কিনেছি', 'দরকার', 'লাগবে',
-    'আনতে', 'আনব', 'আনলাম',
-    // Asking about / discussing (not doing)
-    'কয়বার', 'কতবার', 'কতক্ষণ', 'কখন খাওয়াব', 'কি খাওয়াব',
-    'উচিত', 'পারি', 'যায়', 'ভালো হবে',
-  ];
-
-  if (EXCLUSIONS.some(ex => lowerText.includes(ex))) {
-    return activities;
-  }
-
-  // ============================================================
   // TIER 1: Exact phrase match (highest confidence)
+  // These are definite past-tense action phrases — always log,
+  // regardless of what else is in the message (questions, future tense)
   // ============================================================
 
   // FOOD FIRST (check before feed to avoid conflicts)
@@ -202,6 +182,27 @@ function detectActivities(text) {
 
   // If Tier 1 found something, return
   if (activities.length > 0) return activities;
+
+  // ============================================================
+  // GLOBAL EXCLUSIONS — only blocks Tier 2 (fuzzy matching)
+  // Tier 1 exact phrases already returned above, so exclusions
+  // only prevent false positives in the fuzzier root+verb matching
+  // ============================================================
+  const EXCLUSIONS = [
+    // Future tense / planning
+    'খাওয়াব', 'দিব', 'দিবো', 'করব', 'করবো', 'দেব', 'দেবো',
+    'খাওয়াতে হবে', 'দিতে হবে', 'করতে হবে',
+    // Shopping / buying
+    'কিনতে', 'কিনব', 'কিনলাম', 'কিনেছি', 'দরকার', 'লাগবে',
+    'আনতে', 'আনব', 'আনলাম',
+    // Asking about / discussing (not doing)
+    'কয়বার', 'কতবার', 'কতক্ষণ', 'কখন খাওয়াব', 'কি খাওয়াব',
+    'উচিত', 'পারি', 'যায়', 'ভালো হবে',
+  ];
+
+  if (EXCLUSIONS.some(ex => lowerText.includes(ex))) {
+    return activities;
+  }
 
   // ============================================================
   // TIER 2: Root word + action verb matching (fallback)

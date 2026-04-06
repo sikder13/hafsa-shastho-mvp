@@ -21,7 +21,7 @@ import {
   Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { streamMessageToClaude, sendMessageToClaude } from '../services/claudeAPI';
+import { streamMessageToClaude, sendMessageToClaude, getDailyUsageCount } from '../services/claudeAPI';
 import { buildHafsaPrompt, buildOpeningMessage, detectEmergency } from '../services/hafsaPrompt';
 import { buildFullContext } from '../utils/contextBuilder';
 import { getAIContext } from '../services/intelligenceService';
@@ -32,7 +32,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MessageBubble from '../components/MessageBubble';
 import { COLORS } from '../utils/constants';
 import OfflineBar, { useIsOffline } from '../components/OfflineBar';
-import { calculateAge } from '../utils/helpers';
+import { calculateAge, toBengaliNumber } from '../utils/helpers';
 import { useVoiceInput } from '../services/voiceService';
 import { syncDailyLog, syncAIInteraction, syncChatMessage } from '../services/supabaseService';
 
@@ -52,6 +52,7 @@ export default function ChatScreen({ baby, onBack }) {
   const [loading, setLoading] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
+  const [dailyUsage, setDailyUsage] = useState(0);
   const scrollViewRef = useRef(null);
   const abortRef = useRef(null);
   const contextRef = useRef(null);
@@ -77,6 +78,11 @@ export default function ChatScreen({ baby, onBack }) {
       Alert.alert('🎤', voiceError);
     }
   }, [voiceError]);
+
+  // Load daily usage count on mount
+  useEffect(() => {
+    getDailyUsageCount().then(count => setDailyUsage(count));
+  }, []);
 
   useEffect(() => {
     initializeChat();
@@ -265,6 +271,7 @@ export default function ChatScreen({ baby, onBack }) {
             saveConversation([...messages, newUserMsg, hafsaMsg]);
             setStreamingText('');
             setLoading(false);
+            getDailyUsageCount().then(count => setDailyUsage(count));
             scrollToBottom();
           } else if (!streamWorked) {
             // Stream returned empty — fallback to non-streaming
@@ -328,6 +335,7 @@ export default function ChatScreen({ baby, onBack }) {
           inputMethod: 'text',
         }).catch(e => console.log('AI fallback sync:', e.message));
         scrollToBottom();
+        getDailyUsageCount().then(count => setDailyUsage(count));
       } else {
         Alert.alert('ত্রুটি', result.message);
       }
@@ -387,6 +395,22 @@ export default function ChatScreen({ baby, onBack }) {
           </Text>
         </View>
       </View>
+
+      {/* USAGE COUNTER */}
+      {dailyUsage > 0 && (
+        <Text style={{
+          textAlign: 'center',
+          fontSize: 11,
+          paddingVertical: 4,
+          color: dailyUsage >= 12 ? '#E74C3C' : dailyUsage > 10 ? COLORS.primary : '#999',
+        }}>
+          {dailyUsage >= 12
+            ? 'আজকের মেসেজ শেষ'
+            : dailyUsage > 10
+              ? `বোনাস ${toBengaliNumber(12 - dailyUsage)}/২ বাকি 🎁`
+              : `আজ ${toBengaliNumber(10 - dailyUsage)}/১০ মেসেজ বাকি`}
+        </Text>
+      )}
 
       {/* MESSAGES */}
       <KeyboardAvoidingView
