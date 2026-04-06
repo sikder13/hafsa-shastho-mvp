@@ -61,12 +61,32 @@ export function getHomeInsights(data) {
     motherHistory: motherLogHistory,
   });
 
+  // Transform vaccine alerts based on baby age and overdue severity
+  const vaccineAlerts = [];
+  for (const a of vaccineAssessment.alerts) {
+    if (a === 'vaccine_overdue') {
+      // Suppress overdue alerts for babies less than 7 days old (new users)
+      if (ageInfo.ageDays < 7) continue;
+
+      const mostOverdue = vaccineAssessment.overdue[0]?.daysOverdue || 0;
+      if (mostOverdue > 30) {
+        // Truly overdue — keep red/high severity
+        vaccineAlerts.push({ source: 'vaccine', key: 'vaccine_overdue', severity: 'high' });
+      } else {
+        // Recently overdue (1-30 days) — softer language, medium severity
+        vaccineAlerts.push({ source: 'vaccine', key: 'vaccine_overdue_recent', severity: 'medium' });
+      }
+    } else {
+      vaccineAlerts.push({ source: 'vaccine', key: a, severity: vaccineAssessment.severity });
+    }
+  }
+
   // Collect and prioritize all alerts
   const allAlerts = [
     ...feedAssessment.alerts.map(a => ({ source: 'feed', key: a, severity: feedAssessment.severity })),
     ...motherAssessment.alerts.map(a => ({ source: 'mother', key: a, severity: motherAssessment.overallSeverity })),
     ...growthAssessment.alerts.map(a => ({ source: 'growth', key: a, severity: growthAssessment.severity })),
-    ...vaccineAssessment.alerts.map(a => ({ source: 'vaccine', key: a, severity: vaccineAssessment.severity })),
+    ...vaccineAlerts,
     ...crossConnections.alerts.map(a => ({ source: 'cross', key: a, severity: crossConnections.highestSeverity })),
   ];
 

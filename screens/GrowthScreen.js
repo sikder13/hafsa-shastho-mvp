@@ -31,10 +31,28 @@ export default function GrowthScreen({ baby, onBack }) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
+  const [milestoneAcknowledged, setMilestoneAcknowledged] = useState({});
 
   useEffect(() => {
     loadMeasurements();
-    
+
+    // Load acknowledged milestones
+    const loadAcknowledged = async () => {
+      try {
+        const keys = await AsyncStorage.getAllKeys();
+        const milestoneKeys = keys.filter(k => k.startsWith('growth_milestone_'));
+        const acked = {};
+        for (const k of milestoneKeys) {
+          const kg = k.replace('growth_milestone_', '');
+          acked[kg] = true;
+        }
+        setMilestoneAcknowledged(acked);
+      } catch (e) {
+        // Ignore
+      }
+    };
+    loadAcknowledged();
+
     // One-time migration
     const migrate = async () => {
       try {
@@ -526,7 +544,7 @@ export default function GrowthScreen({ baby, onBack }) {
         )}
 
         {/* MILESTONE CELEBRATION */}
-        {measurements.length > 0 && checkMilestone(measurements[0].weight) && (
+        {measurements.length > 0 && checkMilestone(measurements[0].weight) && !milestoneAcknowledged[String(checkMilestone(measurements[0].weight))] && (
           <View style={{
             backgroundColor: COLORS.primaryLight,
             padding: 24,
@@ -562,28 +580,56 @@ export default function GrowthScreen({ baby, onBack }) {
               </Text>
             </View>
             
-            <TouchableOpacity
-              onPress={async () => {
-                try {
+            <View style={{ flexDirection: 'row', marginTop: 16, gap: 10 }}>
+              <TouchableOpacity
+                onPress={async () => {
                   const milestoneKg = checkMilestone(measurements[0].weight);
-                  const shareText = `👶 ${baby.name} আজ ${toBengaliNumber(milestoneKg)} কেজি হয়েছে! ✅ | হাফসা স্বাস্থ্য অ্যাপ দিয়ে ট্র্যাক করছি। ডাউনলোড করুন: https://nahltech.com/product/hafsa-sastho`;
-                  await Share.share({ message: shareText });
-                } catch (e) {
-                  console.log('Share error:', e.message);
-                }
-              }}
-              style={{
-                marginTop: 16,
-                backgroundColor: COLORS.primary,
-                paddingHorizontal: 24,
-                paddingVertical: 12,
-                borderRadius: 8
-              }}
-            >
-              <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
-                📤 শেয়ার করুন
-              </Text>
-            </TouchableOpacity>
+                  setMilestoneAcknowledged(prev => ({ ...prev, [String(milestoneKg)]: true }));
+                  try {
+                    await AsyncStorage.setItem('growth_milestone_' + milestoneKg, 'true');
+                  } catch (e) {
+                    console.log('Milestone ack error:', e.message);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: 'white',
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: COLORS.primary, fontSize: 16, fontWeight: 'bold' }}>
+                  ✓ দেখেছি
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={async () => {
+                  try {
+                    const milestoneKg = checkMilestone(measurements[0].weight);
+                    const shareText = `👶 ${baby.name} আজ ${toBengaliNumber(milestoneKg)} কেজি হয়েছে! ✅ | হাফসা স্বাস্থ্য অ্যাপ দিয়ে ট্র্যাক করছি। ডাউনলোড করুন: https://nahltech.com/product/hafsa-sastho`;
+                    await Share.share({ message: shareText });
+                  } catch (e) {
+                    console.log('Share error:', e.message);
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  backgroundColor: COLORS.primary,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderRadius: 8,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold' }}>
+                  📤 শেয়ার করুন
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 

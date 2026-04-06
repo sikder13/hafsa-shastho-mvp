@@ -66,6 +66,7 @@ const ALERT_DISPLAY = {
   vaccine_overdue: { icon: '💉', color: '#F44336' },
   vaccine_due_today: { icon: '💉', color: '#FF9800' },
   vaccine_due_soon: { icon: '💉', color: '#2196F3' },
+  vaccine_overdue_recent: { icon: '💉', color: '#FF9800' },
   post_vaccine_care: { icon: '💉', color: '#4CAF50' },
   // Growth alerts
   weight_below_p3: { icon: '📊', color: '#F44336' },
@@ -100,7 +101,8 @@ function getAlertBengali(alertKey, insights) {
     heavy_bleeding_late: `এই সময়ে বেশি রক্তপাত স্বাভাবিক নয় — ডাক্তার দেখান`,
     csection_worsening: `সিজারের ক্ষত খারাপ হচ্ছে — আজই ডাক্তার দেখান`,
     low_water_intake: `পানি কম খাচ্ছেন — দুধের পরিমাণে প্রভাব পড়তে পারে`,
-    vaccine_overdue: `${vaccine?.overdue?.[0]?.name || 'টিকা'} মিস হয়ে গেছে — দ্রুত দিন`,
+    vaccine_overdue: `${vaccine?.overdue?.[0]?.name || 'টিকা'} অনেকদিন বাকি আছে — দ্রুত দিন`,
+    vaccine_overdue_recent: `${vaccine?.overdue?.[0]?.name || 'টিকা'} এখনো দেওয়া হয়নি — সময় বের করে দিন`,
     vaccine_due_today: `আজ ${vaccine?.upcoming?.[0]?.name || 'টিকা'} দেওয়ার দিন!`,
     vaccine_due_soon: `${vaccine?.upcoming?.[0]?.name || 'টিকা'} ${toBengaliNumber(vaccine?.upcoming?.[0]?.daysUntil || 0)} দিনে`,
     weight_below_p3: `ওজন স্বাভাবিকের নিচে — ডাক্তারকে জানান`,
@@ -225,6 +227,20 @@ export default function HomeScreen() {
     }
   }, [baby, logs, vaccineStatus, motherProfile, growthMeasurements]);
 
+  // First-time intro card
+  const [showIntro, setShowIntro] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('homescreen_intro_shown').then(val => {
+      if (!val) setShowIntro(true);
+    }).catch(() => {});
+  }, []);
+
+  const dismissIntro = useCallback(async () => {
+    setShowIntro(false);
+    try { await AsyncStorage.setItem('homescreen_intro_shown', 'true'); } catch (e) {}
+  }, []);
+
   const handleCelebrate = useCallback(async (milestoneId) => {
     try {
       await markAsCelebrated(milestoneId);
@@ -307,6 +323,37 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* FIRST-TIME WELCOME CARD */}
+        {showIntro && (
+          <View style={{
+            backgroundColor: '#E3F2FD',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            borderWidth: 1,
+            borderColor: '#90CAF9',
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.primaryDark, marginBottom: 10 }}>
+              {'👋 হাফসা স্বাস্থ্য-তে স্বাগতম!'}
+            </Text>
+            <Text style={{ fontSize: 14, color: COLORS.dark, lineHeight: 22 }}>
+              {'এখানে আপনি দেখবেন:\n🔴 লাল কার্ড = গুরুত্বপূর্ণ সতর্কতা\n🟡 হলুদ কার্ড = তথ্য ও পরামর্শ\n🟢 সবুজ কার্ড = ভালো খবর ও মাইলস্টোন\n\nপ্রতিদিন চেক করুন — হাফসা আপা আপনার জন্য নতুন তথ্য আনবে!'}
+            </Text>
+            <TouchableOpacity
+              onPress={dismissIntro}
+              style={{
+                marginTop: 12,
+                backgroundColor: COLORS.primary,
+                padding: 12,
+                borderRadius: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>{'✓ বুঝেছি!'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* MILESTONE CELEBRATION — from milestoneService */}
         {uncelebratedMilestone && (
