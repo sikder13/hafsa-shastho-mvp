@@ -493,15 +493,11 @@ export default function SettingsScreen({ onBack }) {
         }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
             <Text style={{ fontSize: 15, color: COLORS.gray }}>ভার্সন</Text>
-            <Text style={{ fontSize: 15, color: COLORS.dark, fontWeight: '600' }}>২.০ (MVP)</Text>
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={{ fontSize: 15, color: COLORS.gray }}>ডেটা সংরক্ষণ</Text>
-            <Text style={{ fontSize: 15, color: COLORS.dark, fontWeight: '600' }}>এই ডিভাইসে</Text>
+            <Text style={{ fontSize: 15, color: COLORS.dark, fontWeight: '600' }}>v1.0.0-beta</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 15, color: COLORS.gray }}>AI মডেল</Text>
-            <Text style={{ fontSize: 15, color: COLORS.dark, fontWeight: '600' }}>Claude Sonnet</Text>
+            <Text style={{ fontSize: 15, color: COLORS.gray }}>ডেটা সংরক্ষণ</Text>
+            <Text style={{ fontSize: 15, color: COLORS.dark, fontWeight: '600' }}>এই ডিভাইসে</Text>
           </View>
         </View>
 
@@ -519,30 +515,6 @@ export default function SettingsScreen({ onBack }) {
             আপনার সব তথ্য শুধুমাত্র আপনার ফোনে সংরক্ষিত। আমরা কোনো ব্যক্তিগত তথ্য তৃতীয় পক্ষের সাথে শেয়ার করি না। AI চ্যাটের তথ্য শুধুমাত্র আপনাকে ভালো সেবা দিতে ব্যবহৃত হয়।
           </Text>
         </View>
-
-        {/* DANGER ZONE */}
-        <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.danger, marginBottom: 12 }}>
-          ⚠️ বিপদ অঞ্চল
-        </Text>
-
-        <TouchableOpacity
-          onPress={handleResetApp}
-          style={{
-            backgroundColor: '#FFEBEE',
-            borderRadius: 12,
-            padding: 16,
-            borderWidth: 1,
-            borderColor: '#FFCDD2',
-            marginBottom: 20
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.danger, marginBottom: 4 }}>
-            🗑️ সব ডেটা মুছে ফেলুন
-          </Text>
-          <Text style={{ fontSize: 13, color: '#C62828' }}>
-            এই কাজটি ফিরিয়ে আনা যাবে না। সব তথ্য মুছে যাবে।
-          </Text>
-        </TouchableOpacity>
 
         {/* LOGOUT */}
         <TouchableOpacity

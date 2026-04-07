@@ -6,8 +6,8 @@
  * @author Udaay Sikder — Co-Founder & Dev
  */
 // App.js
-// Root component — Auth check → Onboarding → Main App
-// Flow: Auth (phone OTP) → Onboarding (baby + mother) → TabNavigator
+// Root component — Consent → Auth check → Onboarding → Main App
+// Flow: Consent (one-time) → Auth → Onboarding (baby + mother) → TabNavigator
 
 import React, { useEffect, useState } from 'react';
 import {
@@ -56,8 +56,6 @@ function AppContent() {
 
   const [authLoading, setAuthLoading] = useState(true);
   const [session, setSession] = useState(null);
-  const [consentAccepted, setConsentAccepted] = useState(null); // null = loading, true/false
-  const [consentChecked, setConsentChecked] = useState(false);
 
   // Check auth state on mount + listen for changes
   useEffect(() => {
@@ -99,24 +97,6 @@ function AppContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Check consent on mount
-  useEffect(() => {
-    AsyncStorage.getItem('consent_accepted').then(val => {
-      setConsentAccepted(val === 'true');
-    });
-  }, []);
-
-  const handleAcceptConsent = async () => {
-    await AsyncStorage.setItem('consent_accepted', 'true');
-    setConsentAccepted(true);
-
-    // Record consents to Supabase (fire-and-forget)
-    recordConsent('privacy_policy', '1.0', true).catch(e => console.log('Consent:', e.message));
-    recordConsent('medical_disclaimer', '1.0', true).catch(e => console.log('Consent:', e.message));
-    recordConsent('terms_of_service', '1.0', true).catch(e => console.log('Consent:', e.message));
-    recordConsent('anonymized_research', '1.0', true).catch(e => console.log('Consent:', e.message));
-  };
-
   // Set up notifications on mount
   useEffect(() => {
     try {
@@ -146,11 +126,76 @@ function AppContent() {
     );
   }
 
-  // Step 2: Authenticated but consent not accepted → show consent modal
-  if (session?.user && consentAccepted === false) {
+  // Step 2: Authenticated but no baby profile → show onboarding
+  if (!baby) {
     return (
       <>
-        <Modal visible={true} animationType="slide" presentationStyle="pageSheet">
+        <OnboardingScreen
+          onComplete={async (babyData, motherData) => {
+            // Save locally (AppContext handles Supabase sync automatically)
+            await saveBabyProfile(babyData);
+            await saveMotherProfile(motherData);
+
+            // Create trial subscription
+            createTrialSubscription().catch(e => console.log('Sub create:', e.message));
+
+            // Record consent (terms + privacy + data collection)
+            recordConsent('terms', '1.0', true).catch(e => console.log('Consent:', e.message));
+            recordConsent('privacy', '1.0', true).catch(e => console.log('Consent:', e.message));
+            recordConsent('data_collection', '1.0', true).catch(e => console.log('Consent:', e.message));
+          }}
+        />
+        <StatusBar style="auto" />
+      </>
+    );
+  }
+
+  // Step 3: Authenticated + has profile → main app
+  return (
+    <NavigationContainer>
+      <TabNavigator />
+      <StatusBar style="auto" />
+    </NavigationContainer>
+  );
+}
+
+export default function App() {
+  const [fontsLoaded] = useFonts({
+    HindSiliguri_400Regular,
+    HindSiliguri_600SemiBold,
+    HindSiliguri_700Bold,
+  });
+
+  const [consentAccepted, setConsentAccepted] = useState(null); // null = loading, true/false
+  const [consentChecked, setConsentChecked] = useState(false);
+
+  // Check consent on mount — runs before anything else
+  useEffect(() => {
+    AsyncStorage.getItem('consent_accepted').then(val => {
+      setConsentAccepted(val === 'true');
+    });
+  }, []);
+
+  const handleAcceptConsent = async () => {
+    await AsyncStorage.setItem('consent_accepted', 'true');
+    setConsentAccepted(true);
+
+    // Record consents to Supabase (fire-and-forget, will work once user logs in)
+    recordConsent('privacy_policy', '1.0', true).catch(e => console.log('Consent:', e.message));
+    recordConsent('medical_disclaimer', '1.0', true).catch(e => console.log('Consent:', e.message));
+    recordConsent('terms_of_service', '1.0', true).catch(e => console.log('Consent:', e.message));
+    recordConsent('anonymized_research', '1.0', true).catch(e => console.log('Consent:', e.message));
+  };
+
+  if (!fontsLoaded || consentAccepted === null) {
+    return <LoadingScreen />;
+  }
+
+  // Consent not accepted → show consent modal (blocks everything)
+  if (consentAccepted === false) {
+    return (
+      <>
+        <Modal visible={true} animationType="slide">
           <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
             <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
               <Text style={{ fontSize: 24, fontWeight: 'bold', color: COLORS.primary, textAlign: 'center', marginTop: 20, marginBottom: 8 }}>
@@ -253,50 +298,7 @@ function AppContent() {
     );
   }
 
-  // Step 3: Authenticated but no baby profile → show onboarding
-  if (!baby) {
-    return (
-      <>
-        <OnboardingScreen
-          onComplete={async (babyData, motherData) => {
-            // Save locally (AppContext handles Supabase sync automatically)
-            await saveBabyProfile(babyData);
-            await saveMotherProfile(motherData);
-
-            // Create trial subscription
-            createTrialSubscription().catch(e => console.log('Sub create:', e.message));
-
-            // Record consent (terms + privacy + data collection)
-            recordConsent('terms', '1.0', true).catch(e => console.log('Consent:', e.message));
-            recordConsent('privacy', '1.0', true).catch(e => console.log('Consent:', e.message));
-            recordConsent('data_collection', '1.0', true).catch(e => console.log('Consent:', e.message));
-          }}
-        />
-        <StatusBar style="auto" />
-      </>
-    );
-  }
-
-  // Step 4: Authenticated + has profile → main app
-  return (
-    <NavigationContainer>
-      <TabNavigator />
-      <StatusBar style="auto" />
-    </NavigationContainer>
-  );
-}
-
-export default function App() {
-  const [fontsLoaded] = useFonts({
-    HindSiliguri_400Regular,
-    HindSiliguri_600SemiBold,
-    HindSiliguri_700Bold,
-  });
-
-  if (!fontsLoaded) {
-    return <LoadingScreen />;
-  }
-
+  // Consent accepted → show the app
   return (
     <AppProvider>
       <ErrorBoundary>
