@@ -565,6 +565,47 @@ export default function SettingsScreen({ onBack }) {
           </Text>
         </TouchableOpacity>
 
+        {/* LEGAL INFO */}
+        <Text style={{ fontSize: 18, fontWeight: 'bold', color: COLORS.dark, marginBottom: 12, marginTop: 8 }}>
+          📋 আইনি তথ্য
+        </Text>
+
+        <View style={{
+          backgroundColor: COLORS.cardBg,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          marginBottom: 20,
+          overflow: 'hidden',
+        }}>
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://nahltech.com/privacy')}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
+          >
+            <Text style={{ fontSize: 15, color: COLORS.dark }}>🔒 গোপনীয়তা নীতি</Text>
+            <Text style={{ fontSize: 16, color: COLORS.gray }}>→</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://nahltech.com/terms')}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: COLORS.border }}
+          >
+            <Text style={{ fontSize: 15, color: COLORS.dark }}>📄 শর্তাবলী</Text>
+            <Text style={{ fontSize: 16, color: COLORS.gray }}>→</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => Alert.alert(
+              '⚕️ চিকিৎসা সংক্রান্ত দাবিত্যাগ',
+              'হাফসা একটি AI সহায়ক — ডাক্তার নয়। এই অ্যাপের তথ্য শুধুমাত্র সাধারণ স্বাস্থ্য সচেতনতার জন্য। কোনো জরুরি অবস্থায় বা চিকিৎসা সিদ্ধান্তে সবসময় ডাক্তারের পরামর্শ নিন।'
+            )}
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 }}
+          >
+            <Text style={{ fontSize: 15, color: COLORS.dark }}>⚕️ চিকিৎসা দাবিত্যাগ</Text>
+            <Text style={{ fontSize: 16, color: COLORS.gray }}>→</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* DELETE ACCOUNT — intentionally subtle, required by App Store */}
         <TouchableOpacity
           onPress={handleDeleteAccount}

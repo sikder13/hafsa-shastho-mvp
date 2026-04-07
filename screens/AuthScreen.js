@@ -22,7 +22,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Image
+  Image,
+  Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../supabaseClient';
@@ -219,15 +220,28 @@ export default function AuthScreen() {
           </TouchableOpacity>
 
           {/* Footer */}
-          <Text style={{
-            fontSize: 12,
-            color: COLORS.lightGray,
-            textAlign: 'center',
-            marginTop: 32,
-            lineHeight: 18,
-          }}>
-            অ্যাকাউন্ট তৈরি করে আপনি আমাদের{'\n'}ব্যবহারের শর্তাবলী ও গোপনীয়তা নীতিতে সম্মত হচ্ছেন।
-          </Text>
+          <View style={{ alignItems: 'center', marginTop: 32 }}>
+            <Text style={{ fontSize: 12, color: COLORS.lightGray, textAlign: 'center', lineHeight: 18 }}>
+              অ্যাকাউন্ট তৈরি করে আপনি আমাদের
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 4 }}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://nahltech.com/privacy')}>
+                <Text style={{ fontSize: 12, color: COLORS.primary, textDecorationLine: 'underline' }}>
+                  গোপনীয়তা নীতি
+                </Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: COLORS.lightGray }}> ও </Text>
+              <TouchableOpacity onPress={() => Linking.openURL('https://nahltech.com/terms')}>
+                <Text style={{ fontSize: 12, color: COLORS.primary, textDecorationLine: 'underline' }}>
+                  শর্তাবলী
+                </Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 12, color: COLORS.lightGray }}>তে সম্মত হচ্ছেন।</Text>
+            </View>
+            <Text style={{ fontSize: 11, color: COLORS.lightGray, textAlign: 'center', marginTop: 6, lineHeight: 16 }}>
+              ⚕️ এই অ্যাপ চিকিৎসা পরামর্শের বিকল্প নয়।
+            </Text>
+          </View>
 
           <Text style={{ fontSize: 11, color: '#BDBDBD', textAlign: 'center', marginTop: 24 }}>
             Nahl Technologies Inc.
