@@ -156,11 +156,12 @@ export default function HomeScreen() {
   } = useApp();
 
   const navigation = useNavigation();
+  const notificationsScheduled = React.useRef(false);
 
-  // Schedule notifications when HomeScreen mounts / data changes
+  // Schedule notifications — feed alert reacts to data, recurring ones schedule ONCE
   useEffect(() => {
     try {
-      // Feed alert — check if last feed was > 4 hours ago
+      // Feed alert — updates when feed data changes (reactive)
       if (baby?.name && logs?.feed?.length > 0) {
         const lastFeedTime = logs.feed[0]?.timestamp;
         if (lastFeedTime) {
@@ -168,22 +169,27 @@ export default function HomeScreen() {
         }
       }
 
-      // Check-in reminder — fires at 8 PM if no check-in today
-      scheduleCheckInReminder().catch(e => console.log('Check-in reminder:', e.message));
+      // Recurring notifications — schedule ONCE per app session
+      if (!notificationsScheduled.current) {
+        notificationsScheduled.current = true;
 
-      // Evening summary — fires at 9 PM daily
-      scheduleEveningSummary().catch(e => console.log('Evening summary:', e.message));
+        // Check-in reminder — fires at 8 PM if no check-in today
+        scheduleCheckInReminder().catch(e => console.log('Check-in reminder:', e.message));
 
-      // Morning catchup — fires at 8 AM daily
-      if (baby?.name) {
-        scheduleMorningCatchup(baby.name).catch(e => console.log('Morning catchup:', e.message));
+        // Evening summary — fires at 9 PM daily
+        scheduleEveningSummary().catch(e => console.log('Evening summary:', e.message));
+
+        // Morning catchup — fires at 8 AM daily
+        if (baby?.name) {
+          scheduleMorningCatchup(baby.name).catch(e => console.log('Morning catchup:', e.message));
+        }
+
+        // EPDS reminder — every 2 weeks after last assessment
+        AsyncStorage.getItem('epds_last_date').then(lastDate => {
+          const epdsDate = lastDate || (baby?.birth_date ? new Date(new Date(baby.birth_date).getTime() + 14*24*60*60*1000).toISOString() : null);
+          if (epdsDate) scheduleEPDSReminder(epdsDate).catch(e => console.log('EPDS reminder:', e.message));
+        }).catch(e => console.log('EPDS date load:', e.message));
       }
-
-      // EPDS reminder — every 2 weeks after last assessment
-      AsyncStorage.getItem('epds_last_date').then(lastDate => {
-        const epdsDate = lastDate || (baby?.birth_date ? new Date(new Date(baby.birth_date).getTime() + 14*24*60*60*1000).toISOString() : null);
-        if (epdsDate) scheduleEPDSReminder(epdsDate).catch(e => console.log('EPDS reminder:', e.message));
-      }).catch(e => console.log('EPDS date load:', e.message));
     } catch (e) {
       console.log('Notification scheduling error:', e.message);
     }
