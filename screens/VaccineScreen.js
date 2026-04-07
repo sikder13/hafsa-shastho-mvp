@@ -12,28 +12,86 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Linking
+  Linking,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
-import { EPI_CENTERS, AREAS } from '../data/epiCenters';
 import { toBengaliNumber, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
-import { syncVaccineRecord } from '../services/supabaseService';
+import { syncVaccineRecord, trackEvent } from '../services/supabaseService';
+import { supabase } from '../supabaseClient';
 import { scheduleVaccineReminder } from '../services/notificationService';
 import { useApp } from '../context/AppContext';
 
 export default function VaccineScreen({ baby, onBack }) {
   const { updateVaccineStatus: updateGlobalVaccine } = useApp();
   const [vaccineStatus, setVaccineStatus] = useState({});
-  const [userArea, setUserArea] = useState('');
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [nearestCenters, setNearestCenters] = useState([]);
+  const [userId, setUserId] = useState(null);
+  const [showSymptoms, setShowSymptoms] = useState(false);
+  const [symptomChecks, setSymptomChecks] = useState({ fever: false, rash: false, cough: false, redEyes: false });
+  const [symptomResult, setSymptomResult] = useState(null);
+
+  const openVaccineCenterSearch = () => {
+    const query = encodeURIComponent('টিকা কেন্দ্র vaccine center');
+    const url = Platform.select({
+      ios: `maps:0,0?q=${query}`,
+      android: `geo:0,0?q=${query}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${query}`,
+    });
+    Linking.openURL(url).catch(() => {
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+    });
+  };
 
   useEffect(() => {
     loadVaccineStatus();
-    checkUserArea();
+
+    // Load userId for event tracking
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) setUserId(session.user.id);
+    });
+
+    // Track measles alert view (once per day)
+    const trackMeaslesView = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const key = 'measles_alert_viewed_' + today;
+        const viewed = await AsyncStorage.getItem(key);
+        if (!viewed) {
+          await AsyncStorage.setItem(key, 'true');
+          const babyAgeDays = calculateBabyAgeDays();
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user?.id) {
+              trackEvent(session.user.id, 'measles_alert_viewed', { baby_age_days: babyAgeDays }).catch(() => {});
+            }
+          });
+          // Clean up yesterday's key
+          const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+          AsyncStorage.removeItem('measles_alert_viewed_' + yesterday).catch(() => {});
+        }
+      } catch (e) {}
+    };
+    trackMeaslesView();
+
+    // Track MR urgency and vaccine info view if applicable
+    const trackMRUrgency = async () => {
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEYS.vaccineStatus(baby.id));
+        const vs = saved ? JSON.parse(saved) : {};
+        const ageDays = calculateBabyAgeDays();
+        if (!vs['mr-1']?.completed && ageDays >= 180) {
+          supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session?.user?.id) {
+              trackEvent(session.user.id, 'measles_mr_urgency_shown', { mr1_status: 'pending' }, ageDays).catch(() => {});
+              trackEvent(session.user.id, 'measles_vaccine_info_viewed', {}).catch(() => {});
+            }
+          });
+        }
+      } catch (e) {}
+    };
+    trackMRUrgency();
 
     // One-time migration
     const migrate = async () => {
@@ -62,56 +120,6 @@ export default function VaccineScreen({ baby, onBack }) {
       console.log('Vaccine reminder scheduling error:', e.message);
     }
   }, [vaccineStatus, baby.birth_date]);
-
-  const checkUserArea = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEYS.userArea);
-      if (saved) {
-        setUserArea(saved);
-        findNearestCenters(saved);
-      } else {
-        setShowLocationPicker(true);
-      }
-    } catch (error) {
-      console.error('Error loading area:', error);
-    }
-  };
-
-  const handleAreaSelect = async (area) => {
-    setUserArea(area);
-    await AsyncStorage.setItem(STORAGE_KEYS.userArea, area);
-    findNearestCenters(area);
-    setShowLocationPicker(false);
-  };
-
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  const findNearestCenters = (area) => {
-    const areaCenter = EPI_CENTERS.find(c => c.area === area);
-    if (!areaCenter) return;
-
-    const centersWithDistance = EPI_CENTERS.map(center => ({
-      ...center,
-      distance: calculateDistance(
-        areaCenter.lat,
-        areaCenter.lng,
-        center.lat,
-        center.lng
-      )
-    })).sort((a, b) => a.distance - b.distance);
-
-    setNearestCenters(centersWithDistance.slice(0, 3));
-  };
 
   const loadVaccineStatus = async () => {
     try {
@@ -209,6 +217,15 @@ export default function VaccineScreen({ baby, onBack }) {
               updateGlobalVaccine(vaccine.id, true, vaccineData.completedDate);
               // Sync to Supabase
               syncVaccineRecord(vaccine.id, vaccineData, baby.id).catch(e => console.log('Vaccine sync:', e.message));
+              // Track vaccine completion
+              const babyAge = calculateBabyAgeDays();
+              const isMR = vaccine.id === 'mr-1' || vaccine.id === 'mr-2';
+              if (userId) {
+                trackEvent(userId, 'vaccine_completed', { vaccine_name: vaccine.nameBangla, is_mr: isMR }, babyAge).catch(() => {});
+                if (isMR) {
+                  trackEvent(userId, 'measles_mr_vaccine_completed', { vaccine: vaccine.id === 'mr-1' ? 'MR-1' : 'MR-2' }, babyAge).catch(() => {});
+                }
+              }
               Alert.alert('সফল!', 'টিকা সংরক্ষিত হয়েছে');
             }
           }
@@ -323,7 +340,187 @@ export default function VaccineScreen({ baby, onBack }) {
         </TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
-        
+
+        {/* MEASLES EMERGENCY ALERT BANNER */}
+        <View style={{
+          backgroundColor: '#D32F2F',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 16,
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: 'white', marginBottom: 8 }}>
+            {'⚠️ সতর্কতা: হাম (Measles) প্রাদুর্ভাব'}
+          </Text>
+          <Text style={{ fontSize: 13, color: 'white', lineHeight: 20, marginBottom: 12 }}>
+            বাংলাদেশে হামের প্রাদুর্ভাব চলছে। শিশুদের সুরক্ষায় সচেতন থাকুন। ৬ মাস-৫ বছর বয়সী সব শিশুকে এখনই টিকা দিন।
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity
+              onPress={() => {
+                if (userId) trackEvent(userId, 'measles_helpline_tap', {}).catch(() => {});
+                Linking.openURL('tel:16263');
+              }}
+              style={{
+                flex: 1, borderWidth: 1, borderColor: 'white', borderRadius: 8,
+                paddingVertical: 10, alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold' }}>{'📞 হেল্পলাইন ১৬২৬৩'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                if (userId) trackEvent(userId, 'measles_vaccine_center_tap', {}).catch(() => {});
+                openVaccineCenterSearch();
+              }}
+              style={{
+                flex: 1, borderWidth: 1, borderColor: 'white', borderRadius: 8,
+                paddingVertical: 10, alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: 'white', fontSize: 13, fontWeight: 'bold' }}>{'📍 টিকা কেন্দ্র'}</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontStyle: 'italic', textAlign: 'center', marginTop: 8 }}>
+            তথ্যসূত্র: স্বাস্থ্য ও পরিবার কল্যাণ মন্ত্রণালয়, WHO, UNICEF (এপ্রিল ২০২৬)। এই অ্যাপ চিকিৎসা পরামর্শের বিকল্প নয়। সর্বদা ডাক্তারের পরামর্শ নিন।
+          </Text>
+        </View>
+
+        {/* COLLAPSIBLE SYMPTOM INFO */}
+        <TouchableOpacity
+          onPress={() => {
+            if (!showSymptoms && userId) trackEvent(userId, 'measles_symptoms_viewed', {}).catch(() => {});
+            setShowSymptoms(!showSymptoms);
+          }}
+          style={{
+            backgroundColor: '#FFEBEE', borderRadius: 12, padding: 14, marginBottom: showSymptoms ? 0 : 16,
+            borderWidth: 1, borderColor: '#EF9A9A',
+          }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#C62828' }}>
+            {showSymptoms ? '🔍 হামের লক্ষণ চিনুন ▼' : '🔍 হামের লক্ষণ চিনুন ▶'}
+          </Text>
+        </TouchableOpacity>
+        {showSymptoms && (
+          <View style={{
+            backgroundColor: '#FFEBEE', borderBottomLeftRadius: 12, borderBottomRightRadius: 12,
+            padding: 14, paddingTop: 0, marginBottom: 16,
+            borderWidth: 1, borderTopWidth: 0, borderColor: '#EF9A9A',
+          }}>
+            <Text style={{ fontSize: 14, color: '#C62828', lineHeight: 22, marginBottom: 4 }}>
+              {'হামের প্রধান লক্ষণ:\n🤒 তীব্র জ্বর (১০৩°F+)\n🔴 সারা গায়ে লাল র‍্যাশ/দানা\n😤 কাশি, সর্দি, নাক দিয়ে পানি পড়া\n👁️ চোখ লাল ও পানি পড়া'}
+            </Text>
+            <Text style={{ fontSize: 14, color: '#C62828', lineHeight: 22, marginTop: 8 }}>
+              {'আপনার শিশুর ২+ লক্ষণ থাকলে:\n১. এখনই হাসপাতালে যান\n২. অন্য শিশুদের থেকে আলাদা রাখুন\n৩. পর্যাপ্ত পানি ও বুকের দুধ দিন'}
+            </Text>
+            <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic', marginTop: 8 }}>
+              তথ্যসূত্র: WHO Measles Fact Sheet, বাংলাদেশ স্বাস্থ্য মন্ত্রণালয়
+            </Text>
+          </View>
+        )}
+
+        {/* MEASLES SYMPTOM CHECKER */}
+        <View style={{
+          backgroundColor: '#FFEBEE', borderRadius: 12, padding: 16, marginBottom: 16,
+          borderWidth: 1, borderColor: '#EF9A9A',
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#C62828', marginBottom: 12 }}>
+            {'🩺 হামের লক্ষণ চেক করুন'}
+          </Text>
+          {[
+            { key: 'fever', label: 'জ্বর আছে (১০১°F+)' },
+            { key: 'rash', label: 'গায়ে র‍্যাশ/দানা আছে' },
+            { key: 'cough', label: 'কাশি বা সর্দি আছে' },
+            { key: 'redEyes', label: 'চোখ লাল বা পানি পড়ছে' },
+          ].map(item => (
+            <TouchableOpacity
+              key={item.key}
+              onPress={() => setSymptomChecks(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}
+            >
+              <Text style={{ fontSize: 20, marginRight: 10 }}>
+                {symptomChecks[item.key] ? '☑' : '☐'}
+              </Text>
+              <Text style={{ fontSize: 15, color: '#C62828' }}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+          <TouchableOpacity
+            onPress={() => {
+              const checked = Object.values(symptomChecks).filter(Boolean).length;
+              setSymptomResult(checked >= 2 ? 'high' : 'low');
+              if (userId) {
+                trackEvent(userId, 'measles_symptom_check', {
+                  symptoms_checked: checked,
+                  fever: symptomChecks.fever,
+                  rash: symptomChecks.rash,
+                  cough: symptomChecks.cough,
+                  red_eyes: symptomChecks.redEyes,
+                  risk_level: checked >= 2 ? 'high' : 'low',
+                }, calculateBabyAgeDays()).catch(() => {});
+              }
+            }}
+            style={{
+              backgroundColor: '#C62828', borderRadius: 8, padding: 12,
+              alignItems: 'center', marginTop: 8,
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>চেক করুন</Text>
+          </TouchableOpacity>
+          {symptomResult === 'low' && (
+            <View style={{ marginTop: 12 }}>
+              <Text style={{ fontSize: 14, color: '#2E7D32' }}>
+                {'✅ এই মুহূর্তে হামের ঝুঁকি কম। তবে সতর্ক থাকুন এবং টিকা দিয়ে রাখুন।'}
+              </Text>
+              <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic', marginTop: 4 }}>
+                {'⚕️ এটি একটি স্ক্রিনিং টুল, রোগ নির্ণয় নয়। সন্দেহ হলে অবশ্যই ডাক্তার দেখান।'}
+              </Text>
+            </View>
+          )}
+          {symptomResult === 'high' && (
+            <View style={{ marginTop: 12 }}>
+              <Text style={{ fontSize: 14, color: '#C62828', fontWeight: 'bold' }}>
+                {'🚨 এখনই নিকটতম হাসপাতালে যান! শিশুকে অন্যদের থেকে আলাদা রাখুন।'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => Linking.openURL('tel:16263')}
+                style={{
+                  backgroundColor: '#C62828', borderRadius: 8, padding: 10,
+                  alignItems: 'center', marginTop: 8,
+                }}
+              >
+                <Text style={{ color: 'white', fontSize: 14, fontWeight: 'bold' }}>{'📞 হেল্পলাইন ১৬২৬৩ কল করুন'}</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic', marginTop: 4 }}>
+                {'⚕️ এটি একটি স্ক্রিনিং টুল, রোগ নির্ণয় নয়। সন্দেহ হলে অবশ্যই ডাক্তার দেখান।'}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* MR VACCINE URGENCY CARD */}
+        {!vaccineStatus['mr-1']?.completed && calculateBabyAgeDays() >= 180 && (
+          <View>
+            <View style={{
+              backgroundColor: '#FFF3E0', borderRadius: 12, padding: 16, marginBottom: 12,
+              borderWidth: 1, borderColor: '#FFB74D',
+            }}>
+              <Text style={{ fontSize: 14, color: '#E65100', lineHeight: 22 }}>
+                {'⚠️ '}{baby.name} এর হাম-রুবেলা টিকা এখনো হয়নি। মহামারী চলছে — যত দ্রুত সম্ভব টিকা দিন!
+              </Text>
+            </View>
+            {/* VACCINE INFO HELP CARD */}
+            <View style={{
+              backgroundColor: '#E3F2FD', borderRadius: 12, padding: 16, marginBottom: 16,
+            }}>
+              <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#1565C0', marginBottom: 8 }}>
+                {'💡 আপনার শিশু কি হামের টিকা পেয়েছে?'}
+              </Text>
+              <Text style={{ fontSize: 13, color: '#1565C0', lineHeight: 21 }}>
+                {'বাংলাদেশে হাম-রুবেলা (MR) টিকা দেওয়া হয়:\n\n• MR-১: ৯ মাস বয়সে (প্রথম ডোজ)\n• MR-২: ১৫ মাস বয়সে (দ্বিতীয় ডোজ)\n\n📋 টিকা কার্ড চেক করুন — যদি \'MR\' বা \'হাম\' লেখা থাকে সবুজ চিহ্ন সহ, তাহলে টিকা হয়েছে।\n\n❓ টিকা কার্ড হারিয়ে গেলে বা নিশ্চিত না হলে — নিকটতম EPI কেন্দ্রে গিয়ে জানান। পুনরায় টিকা দিলেও কোনো ক্ষতি নেই।\n\n🚨 মহামারীর সময়: সরকার ৬ মাস+ শিশুদের জরুরি ভিত্তিতে বিনামূল্যে টিকা দিচ্ছে — কার্ড না থাকলেও দেওয়া হবে।'}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={{ marginBottom: 24 }}>
           <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>
             💉 টিকার তালিকা
@@ -491,114 +688,44 @@ export default function VaccineScreen({ baby, onBack }) {
           </View>
         )}
 
-        {showLocationPicker && (
-          <View style={{
-            backgroundColor: COLORS.cardBg,
-            padding: 20,
-            borderRadius: 12,
-            marginBottom: 20,
-            borderWidth: 1,
-            borderColor: COLORS.border
-          }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>
-              📍 আপনার এলাকা নির্বাচন করুন
-            </Text>
-            <Text style={{ fontSize: 14, color: COLORS.gray, marginBottom: 16 }}>
-              নিকটতম টিকা সেন্টার খুঁজতে
-            </Text>
-            <ScrollView style={{ maxHeight: 200 }}>
-              {AREAS.map(area => (
-                <TouchableOpacity
-                  key={area}
-                  onPress={() => handleAreaSelect(area)}
-                  style={{
-                    padding: 16,
-                    borderBottomWidth: 1,
-                    borderBottomColor: COLORS.border
-                  }}
-                >
-                  <Text style={{ fontSize: 16 }}>{area}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {userArea && nearestCenters.length > 0 && (
-          <View style={{ marginBottom: 20 }}>
-            <View style={{
-              backgroundColor: '#FFF3E0',
-              padding: 16,
-              borderRadius: 12,
-              marginBottom: 16,
-              borderLeftWidth: 4,
-              borderLeftColor: COLORS.warning
-            }}>
-              <Text style={{ fontSize: 14, color: '#E65100', fontWeight: 'bold' }}>
-                ⚠️ গুরুত্বপূর্ণ
-              </Text>
-              <Text style={{ fontSize: 13, color: '#E65100', marginTop: 4 }}>
-                দয়া করে যাওয়ার আগে ফোন করে নিশ্চিত করুন। আমরা নিয়মিত তথ্য আপডেট করছি।
-              </Text>
-            </View>
-
-            <View style={{
-              backgroundColor: COLORS.primaryLight,
-              padding: 16,
-              borderRadius: 12
-            }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12 }}>
-                📍 আপনার এলাকায় ({userArea})
-              </Text>
-              
-              {nearestCenters.map((center, index) => (
-                <TouchableOpacity
-                  key={center.id}
-                  onPress={() => {
-                    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(center.name + ' ' + center.address)}`;
-                    Linking.openURL(url);
-                  }}
-                  style={{
-                    backgroundColor: COLORS.cardBg,
-                    padding: 12,
-                    borderRadius: 8,
-                    marginBottom: index < nearestCenters.length - 1 ? 12 : 0
-                  }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: 'bold' }}>
-                    {index + 1}. {center.name}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: COLORS.gray, marginTop: 4 }}>
-                    📏 {center.distance < 1 
-                      ? `${(center.distance * 1000).toFixed(0)} মিটার` 
-                      : `${center.distance.toFixed(1)} কিমি`} দূরে
-                  </Text>
-                  <Text style={{ fontSize: 14, color: COLORS.gray, marginTop: 2 }}>
-                    🕐 {center.hours}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: COLORS.gray, marginTop: 2 }}>
-                    📞 {center.phone}
-                  </Text>
-                  <Text style={{ fontSize: 14, color: COLORS.info, marginTop: 8 }}>
-                    মানচিত্রে দেখুন →
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              
-              <TouchableOpacity
-                onPress={() => setShowLocationPicker(true)}
-                style={{
-                  marginTop: 12,
-                  alignItems: 'center'
-                }}
-              >
-                <Text style={{ fontSize: 14, color: COLORS.primary }}>
-                  এলাকা পরিবর্তন করুন
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+        {/* FIND NEAREST VACCINE CENTER */}
+        <View style={{
+          backgroundColor: '#F1F8E9',
+          borderRadius: 12,
+          padding: 16,
+          marginVertical: 12,
+        }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#33691E', marginBottom: 6 }}>
+            {'📍 নিকটতম টিকা কেন্দ্র খুঁজুন'}
+          </Text>
+          <Text style={{ fontSize: 13, color: COLORS.gray, marginBottom: 12 }}>
+            Google Maps আপনার অবস্থান অনুযায়ী কাছের সরকারি EPI কেন্দ্র দেখাবে
+          </Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (userId) trackEvent(userId, 'vaccine_center_search', {}).catch(() => {});
+              openVaccineCenterSearch();
+            }}
+            style={{
+              backgroundColor: COLORS.primary, borderRadius: 8,
+              padding: 12, alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 15, fontWeight: 'bold' }}>{'🗺️ Google Maps এ খুঁজুন'}</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 13, color: COLORS.gray, textAlign: 'center', marginTop: 10 }}>
+            অথবা জাতীয় স্বাস্থ্য হেল্পলাইন কল করুন
+          </Text>
+          <TouchableOpacity
+            onPress={() => Linking.openURL('tel:16263')}
+            style={{ alignItems: 'center', marginTop: 4 }}
+          >
+            <Text style={{ fontSize: 14, color: COLORS.primary, fontWeight: 'bold' }}>{'📞 ১৬২৬৩'}</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 10, color: '#999', fontStyle: 'italic', textAlign: 'center', marginTop: 8 }}>
+            তথ্যসূত্র: Google Maps। যাওয়ার আগে ফোনে নিশ্চিত করুন।
+          </Text>
+        </View>
 
         {/* GROUPED VACCINE LIST */}
         {getVaccineGroups().map((group, groupIndex) => (
@@ -636,9 +763,19 @@ export default function VaccineScreen({ baby, onBack }) {
                       {status.icon}
                     </Text>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
-                        {vaccine.nameBangla}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold' }}>
+                          {vaccine.nameBangla}
+                        </Text>
+                        {(vaccine.id === 'mr-1' || vaccine.id === 'mr-2') && (
+                          <View style={{
+                            backgroundColor: '#F44336', borderRadius: 4,
+                            paddingHorizontal: 6, paddingVertical: 2, marginLeft: 8,
+                          }}>
+                            <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>জরুরি</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={{ fontSize: 14, color: COLORS.gray, marginTop: 2 }}>
                         {vaccine.ageDisplay} • {getFormattedDueDate(vaccine)}
                       </Text>

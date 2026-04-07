@@ -714,3 +714,24 @@ export async function syncAIUsage(userId, count) {
     console.log('AI usage sync failed:', e.message);
   }
 }
+
+/**
+ * Track an app event for analytics (fire-and-forget)
+ * @param {string} userId - User's Supabase ID
+ * @param {string} eventType - Event name (e.g. 'measles_alert_viewed')
+ * @param {Object} eventData - Additional event data
+ * @param {number|null} babyAgeDays - Baby's age in days
+ */
+export async function trackEvent(userId, eventType, eventData = {}, babyAgeDays = null) {
+  try {
+    const { error } = await supabase.from('app_events').insert({
+      user_id: userId,
+      event_type: eventType,
+      event_data: eventData,
+      baby_age_days: babyAgeDays,
+    });
+    if (error) console.log('Event track error:', error.message);
+  } catch (e) {
+    console.log('Event track failed:', e.message);
+  }
+}
