@@ -36,6 +36,8 @@ import {
   scheduleEPDSReminder,
 } from '../services/notificationService';
 import { shareMilestone, shareWeeklySummary, shareDailySummary } from '../services/shareService';
+import { trackScreenView } from '../services/supabaseService';
+import { supabase } from '../supabaseClient';
 
 // ============================================================
 // BENGALI TEXT FORMATTERS — translate structured data to display text
@@ -234,6 +236,15 @@ export default function HomeScreen() {
     AsyncStorage.getItem('homescreen_intro_shown').then(val => {
       if (!val) setShowIntro(true);
     }).catch(() => {});
+  }, []);
+
+  // Track screen view
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        trackScreenView(session.user.id, 'HomeScreen').catch(() => {});
+      }
+    });
   }, []);
 
   const dismissIntro = useCallback(async () => {

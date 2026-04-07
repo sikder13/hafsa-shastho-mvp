@@ -20,7 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BD_EPI_SCHEDULE } from '../data/bdEPISchedule';
 import { toBengaliNumber, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
-import { syncVaccineRecord, trackEvent } from '../services/supabaseService';
+import { syncVaccineRecord, trackEvent, trackScreenView } from '../services/supabaseService';
 import { supabase } from '../supabaseClient';
 import { scheduleVaccineReminder } from '../services/notificationService';
 import { useApp } from '../context/AppContext';
@@ -50,7 +50,10 @@ export default function VaccineScreen({ baby, onBack }) {
 
     // Load userId for event tracking
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.id) setUserId(session.user.id);
+      if (session?.user?.id) {
+        setUserId(session.user.id);
+        trackScreenView(session.user.id, 'VaccineScreen').catch(() => {});
+      }
     });
 
     // Track measles alert view (once per day)

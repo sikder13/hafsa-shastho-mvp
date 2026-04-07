@@ -25,6 +25,8 @@ import { toBengaliNumber, calculateAge, getRecoveryStage } from '../utils/helper
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
 import { isEPDSDue } from './EdinburghScaleScreen';
 import { getCheckInAssessment } from '../services/intelligenceService';
+import { trackScreenView } from '../services/supabaseService';
+import { supabase } from '../supabaseClient';
 
 const TOTAL_STEPS = 4; // Mood, Physical, Self-Care, Hafsa Response
 
@@ -51,6 +53,15 @@ export default function MotherCheckInScreen({ onBack, onNavigateEPDS }) {
   const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scrollRef = useRef(null);
+
+  // Track screen view
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        trackScreenView(session.user.id, 'MotherCheckInScreen').catch(() => {});
+      }
+    });
+  }, []);
 
   // Check if already checked in today
   useEffect(() => {

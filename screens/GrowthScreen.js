@@ -23,7 +23,8 @@ import dayjs from 'dayjs';
 import { calculatePercentile, WHO_WEIGHT_BOYS, WHO_WEIGHT_GIRLS } from '../data/whoGrowthStandards';
 import { toBengaliNumber, calculateAgeInMonths, formatDateBengali } from '../utils/helpers';
 import { COLORS, STORAGE_KEYS, TEXT } from '../utils/constants';
-import { syncGrowthRecord } from '../services/supabaseService';
+import { syncGrowthRecord, trackScreenView } from '../services/supabaseService';
+import { supabase } from '../supabaseClient';
 import { getGrowthInsight } from '../services/intelligenceService';
 
 export default function GrowthScreen({ baby, onBack }) {
@@ -32,6 +33,15 @@ export default function GrowthScreen({ baby, onBack }) {
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [milestoneAcknowledged, setMilestoneAcknowledged] = useState({});
+
+  // Track screen view
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        trackScreenView(session.user.id, 'GrowthScreen').catch(() => {});
+      }
+    });
+  }, []);
 
   useEffect(() => {
     loadMeasurements();

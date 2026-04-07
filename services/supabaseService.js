@@ -104,6 +104,8 @@ export async function syncProfile(profileData) {
         is_first_baby: profileData.is_first_baby !== false,
         concerns: profileData.concerns || [],
         language: profileData.language || 'bn',
+        is_beta: true,
+        beta_joined_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
 
@@ -722,6 +724,52 @@ export async function syncAIUsage(userId, count) {
  * @param {Object} eventData - Additional event data
  * @param {number|null} babyAgeDays - Baby's age in days
  */
+/**
+ * Track app open event (fire-and-forget)
+ */
+export async function trackAppOpen(userId) {
+  try {
+    await supabase.from('app_events').insert({
+      user_id: userId,
+      event_type: 'app_open',
+      event_data: {
+        timestamp: new Date().toISOString(),
+        platform: require('react-native').Platform.OS,
+      },
+    });
+  } catch (e) {}
+}
+
+/**
+ * Track screen view event (fire-and-forget)
+ */
+export async function trackScreenView(userId, screenName) {
+  try {
+    await supabase.from('app_events').insert({
+      user_id: userId,
+      event_type: 'screen_view',
+      event_data: { screen: screenName },
+    });
+  } catch (e) {}
+}
+
+/**
+ * Track error event (fire-and-forget)
+ */
+export async function trackError(userId, errorMessage, screenName) {
+  try {
+    await supabase.from('app_events').insert({
+      user_id: userId,
+      event_type: 'app_error',
+      event_data: {
+        error: errorMessage,
+        screen: screenName,
+        platform: require('react-native').Platform.OS,
+      },
+    });
+  } catch (e) {}
+}
+
 export async function trackEvent(userId, eventType, eventData = {}, babyAgeDays = null) {
   try {
     const { error } = await supabase.from('app_events').insert({

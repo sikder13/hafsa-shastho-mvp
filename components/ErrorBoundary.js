@@ -11,6 +11,8 @@
 
 import React, { Component } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { trackError } from '../services/supabaseService';
+import { supabase } from '../supabaseClient';
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -24,6 +26,19 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('Screen crash:', error, errorInfo);
+
+    // Report crash to Supabase (fire-and-forget)
+    try {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.id) {
+          trackError(
+            session.user.id,
+            error.toString() + '\n' + errorInfo.componentStack?.substring(0, 500),
+            'ErrorBoundary'
+          ).catch(() => {});
+        }
+      });
+    } catch (e) {}
   }
 
   handleRetry = () => {

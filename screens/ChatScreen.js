@@ -34,7 +34,8 @@ import { COLORS } from '../utils/constants';
 import OfflineBar, { useIsOffline } from '../components/OfflineBar';
 import { calculateAge, toBengaliNumber } from '../utils/helpers';
 import { useVoiceInput } from '../services/voiceService';
-import { syncDailyLog, syncAIInteraction, syncChatMessage } from '../services/supabaseService';
+import { syncDailyLog, syncAIInteraction, syncChatMessage, trackScreenView } from '../services/supabaseService';
+import { supabase } from '../supabaseClient';
 
 export default function ChatScreen({ baby, onBack }) {
   const {
@@ -82,6 +83,15 @@ export default function ChatScreen({ baby, onBack }) {
   // Load daily usage count on mount
   useEffect(() => {
     getDailyUsageCount().then(count => setDailyUsage(count));
+  }, []);
+
+  // Track screen view
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.id) {
+        trackScreenView(session.user.id, 'ChatScreen').catch(() => {});
+      }
+    });
   }, []);
 
   useEffect(() => {

@@ -40,6 +40,7 @@ import {
   processSyncQueue,
   createTrialSubscription,
   recordConsent,
+  trackAppOpen,
 } from './services/supabaseService';
 import {
   setupNotificationCategories,
@@ -66,9 +67,10 @@ function AppContent() {
       setIsAuthenticated(!!existingSession?.user);
       setAuthLoading(false);
 
-      // If already logged in, process sync queue
+      // If already logged in, process sync queue + track app open
       if (existingSession?.user) {
         processSyncQueue().catch(e => console.log('Queue on start:', e.message));
+        trackAppOpen(existingSession.user.id).catch(() => {});
       }
     });
 
